@@ -67,7 +67,9 @@ class SetStandardScaler(StandardScaler):
     """ 
 
     def __init__(self, copy=True, with_mean=True, with_std=True):
-        super(SetStandardScaler).__init__(copy=copy, with_mean=with_mean, with_std=with_std)
+        self.copy=copy
+        self.with_mean=with_mean
+        self.with_std=with_std
 
 
     def fit(self, X, y=None):
@@ -106,15 +108,16 @@ class SetStandardScaler(StandardScaler):
         check_is_fitted(self)
 
         copy = copy if copy is not None else self.copy
-        X = self._validate_data(X, reset=False,
+        X = [self._validate_data(x, reset=False,
                                 accept_sparse='csr', copy=copy,
                                 estimator=self, dtype=FLOAT_DTYPES,
                                 force_all_finite='allow-nan')
+             for x in X]
 
         if self.with_mean:
-            X -= self.mean_
+            X = [x -self.mean_ for x in X]
         if self.with_std:
-            X /= self.scale_
+            X = [x/self.scale_ for x in X]
         return X
 
     def inverse_transform(self, X, copy=None):
@@ -137,7 +140,7 @@ class SetStandardScaler(StandardScaler):
         if copy:
             X = X.copy()
         if self.with_std:
-            X *= self.scale_
+            X =  [x*self.scale_ for x in X]
         if self.with_mean:
-            X += self.mean_
+            X  = [x+self.mean_ for x in X]
         return X
