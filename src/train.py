@@ -1,11 +1,9 @@
 import torch
 
 
-def train(model, name, lr, train_generator, test_generator, start_on_gpu=True):
+def train(model, name, optimizer, scheduler, train_generator, test_generator, start_on_gpu=True):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(),lr=lr)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 50, gamma=0.1, last_epoch=-1)
     criterion = nn.MSELoss()
     losses = []
     losses_ts = []
@@ -31,4 +29,4 @@ def train(model, name, lr, train_generator, test_generator, start_on_gpu=True):
             aux.append(loss.item())
             wandb.log({f"{name} test loss {lr}": loss})
         losses_ts.append(np.mean(aux))
-    return losses, losses_ts
+    return model
