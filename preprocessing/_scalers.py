@@ -96,12 +96,13 @@ class SetStandardScaler(StandardScaler):
             for f in X:
                 try:
                     x = np.load(f)
-                    means.append(np.mean(x))
-                    stds.append(np.std(x))
+                    means.append(np.mean(x, axis=0))
+                    stds.append(np.std(x, axis=0))
                 except:
                     continue
-            self.mean_ = np.mean(means)
-            self.scale_ = np.mean(stds)
+            self.mean_ = np.mean(means, axis=0)
+            self.scale_ = np.mean(stds, axis=0)
+            self.n_features_in = self.mean_.shape[0]
         else:
             X = [self._validate_data(x, accept_sparse=('csr', 'csc'),
                                     estimator=self, dtype=FLOAT_DTYPES,
@@ -122,14 +123,14 @@ class SetStandardScaler(StandardScaler):
         copy : bool, optional (default: None)
             Copy the input X or not.
         """
-        check_is_fitted(self)
+       # check_is_fitted(self)
 
-        copy = copy if copy is not None else self.copy
-        X = [self._validate_data(x, reset=False,
-                                accept_sparse='csr', copy=copy,
-                                estimator=self, dtype=FLOAT_DTYPES,
-                                force_all_finite='allow-nan')
-             for x in X]
+        # copy = copy if copy is not None else self.copy
+        # X = [self._validate_data(x, reset=False,
+        #                         accept_sparse='csr', copy=copy,
+        #                         estimator=self, dtype=FLOAT_DTYPES,
+        #                         force_all_finite='allow-nan')
+        #      for x in X]
 
         if self.with_mean:
             X = [x -self.mean_ for x in X]

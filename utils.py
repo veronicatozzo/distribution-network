@@ -1,3 +1,8 @@
+import datetime 
+
+import pickle as pkl
+import numpy as np
+
 from sklearn.model_selection import ShuffleSplit
 from itertools import combinations
 
@@ -5,7 +10,6 @@ from itertools import combinations
 def shuffle_split_no_overlapping_patients(data, train=0.8, n_splits=5):
     unique_id = np.unique(data['mrn'])
     ss = ShuffleSplit(train_size=train, n_splits=n_splits)
-    
     for train, test in ss.split(unique_id):
         test_id = [] 
         for i in test:
@@ -16,8 +20,9 @@ def shuffle_split_no_overlapping_patients(data, train=0.8, n_splits=5):
             allowed = list(ixs)
             if not len(ixs)==1:
                 for k, j in combinations(ixs, 2):
-                    diff = np.abs(data['date'].iloc[k] - data['date'].iloc[j])
-                    if np.abs(data['date'].iloc[k] - data['date'].iloc[j]) <=180:
+                    diff = np.abs(datetime.datetime.strptime(data['date'].iloc[k], '%Y-%m-%d %H:%M:%S') - 
+                                  datetime.datetime.strptime( data['date'].iloc[j], '%Y-%m-%d %H:%M:%S'))
+                    if diff.days <=180:
                         try:
                             allowed.remove(k)
                             allowed.remove(j)
@@ -30,8 +35,13 @@ def shuffle_split_no_overlapping_patients(data, train=0.8, n_splits=5):
         yield np.array(train_id), np.array(test_id)
 
 
-def save_id_file(id_list, train, test, id_file):
+def save_id_file(train, test, id_file):
+    to_save = dict(train=train,
+                    test = test)
+    with open(id_file, 'wb') as f:
+        pkl.dump(to_save, f)
 
-
-def read_id_file(id_file, test=False):
-    
+def read_id_file(id_file):
+    with open(id_file, 'rb') as f:
+        to_read = pkl.load(to_save)
+    return to_read['train'], to_read['test']
