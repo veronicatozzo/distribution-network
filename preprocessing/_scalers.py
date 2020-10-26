@@ -66,11 +66,11 @@ class SetStandardScaler(StandardScaler):
 
     """ 
 
-    def __init__(self, copy=True, with_mean=True, with_std=True):
+    def __init__(self, copy=True, with_mean=True, with_std=True, stream=True):
         self.copy=copy
         self.with_mean=with_mean
         self.with_std=with_std
-
+        self.stream=stream
 
     def fit(self, X, y=None):
         """Compute the mean and std to be used for later scaling.
@@ -86,14 +86,31 @@ class SetStandardScaler(StandardScaler):
         # Reset internal state before fitting
         self._reset()
 
-        X = [self._validate_data(x, accept_sparse=('csr', 'csc'),
-                                estimator=self, dtype=FLOAT_DTYPES,
-                                force_all_finite='allow-nan') for x in X]
+        if self.stream and not isinstance(X[0], str):
+            raise ValueError('In the case of stream a list of path to arrays has to be passed')
+            
 
-        if self.with_mean:
-            self.mean_ = np.mean(np.vstack(X), axis=0)
-        self.scale_ = np.std(np.vstack(X), axis=0)
-        
+        if self.stream:
+            stds = []
+            means = []
+            for f in X:
+                try:
+                    x = np.load(f)
+                    means.append(np.mean(x))
+                    stds.append(np.std(x))
+                except:
+                    continue
+            self.mean_ = np.mean(means)
+            self.scale_ = np.mean(stds)
+        else:
+            X = [self._validate_data(x, accept_sparse=('csr', 'csc'),
+                                    estimator=self, dtype=FLOAT_DTYPES,
+                                    force_all_finite='allow-nan') for x in X]
+
+            if self.with_mean:
+                self.mean_ = np.mean(np.vstack(X), axis=0)
+            self.scale_ = np.std(np.vstack(X), axis=0)
+            
         return self
 
     def transform(self, X, copy=None):
