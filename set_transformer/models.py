@@ -13,6 +13,10 @@ class SmallSetTransformer(nn.Module):
         )
 
     def forward(self, x):
+        if x.shape[1] > 1:
+            raise NotImplemented("Can't handle multiple inputs")
+        else:
+            x = x.squeeze(1)
         x = self.enc(x)
         x = self.dec(x)
         return x.squeeze(-1)
