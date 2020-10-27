@@ -16,10 +16,25 @@ from utils import  save_id_file, read_id_file
 
 
 
-path_to_outputs = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/outputs"
-path_to_files = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age"
-path_to_id_list = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/id_lists" 
+# path_to_outputs = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/outputs"
+# path_to_files = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age"
+# path_to_id_list = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/id_lists"
+path_to_outputs = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/outputs"
+path_to_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age"
+path_to_id_list = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
 
+
+def select_one_patient_instance(ids_):
+    """ Note: Will not be deterministic due to the set """
+    ids = set()
+    patient_ids = []
+    for id_ in ids_:
+        patient_id = id_.split('_')[0]
+        if patient_id in patient_ids:
+            continue
+        ids.add(id_)
+        patient_ids.append(patient_id)
+    return ids
 
 class FullSampleDataset(Dataset):
     """
@@ -43,7 +58,7 @@ class FullSampleDataset(Dataset):
     def __init__(self, inputs=[], outputs = [],
                  id_file=None, num_subsamples=100, 
                  permute_subsamples=True, 
-                 normalizer='all', test=False):
+                 normalizer='all', test=False, stratify_by_patient=True):
         
         ids_ = set()
         self.outputs = []
@@ -51,8 +66,10 @@ class FullSampleDataset(Dataset):
         for o in outputs:
             table_o = pd.read_csv(path_to_outputs+"/"+o+".csv", index_col=0)
             table_ids = set([str(table_o.iloc[i, 0])+'_'+table_o.iloc[i, 1].split(".")[0]
-                         for i in range(table_o.shape[0])])
+                        for i in range(table_o.shape[0])])
             ids_ = ids_.union(table_ids)
+            if stratify_by_patient:
+                ids_ = select_one_patient_instance(ids_)
             self.outputs.append(table_o)
         if (not os.path.exists(id_file)):
             aux = pd.DataFrame([[i.split('_')[0], i.split('_')[1]]
@@ -84,7 +101,6 @@ class FullSampleDataset(Dataset):
         self.num_subsamples = num_subsamples
         self.permutate_subsamples =permute_subsamples
         self.normalizer = normalizer
-        self.test = test
         self.inputs = inputs
         
    
@@ -107,8 +123,8 @@ class FullSampleDataset(Dataset):
                         perm = np.random.choice(np.arange(x.shape[0]), 
                                             self.num_subsamples, replace=True)
                     else:
-                        perm = np.random.permutation(
-                                    np.arange(x.shape[0]))[:self.num_subsamples]
+                        perm = np.choice(np.arange(x.shape[0]),
+                                         self.num_subsamples, replace=False)
                     xs.append(x[perm, :])
                 else:
                     xs.append(x[:self.num_subsamples, :])
@@ -121,7 +137,7 @@ class FullSampleDataset(Dataset):
         for output in self.outputs:
             ys.append(output[(output['mrn']==int(mrn)) & (output['date'].str.contains(date))].iloc[0, -1])
 
-        return xs, ys
+        return np.array(xs), np.array(ys)
 
     def __len__(self):
         if self.test:
