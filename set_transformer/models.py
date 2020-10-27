@@ -24,4 +24,5 @@ class SmallSetTransformer(nn.Module):
             x = x.squeeze(1)
         x = self.enc(x)
         x = self.dec(x)
-        return x.squeeze(-1)
+        # TODO: change squeeze(1) for multiple inputs
+        return x.squeeze(-1).squeeze(1)
