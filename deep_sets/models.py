@@ -19,12 +19,12 @@ class SmallDeepSet(nn.Module):
             nn.Linear(in_features=64, out_features=n_outputs),
         )
 
-        def forward(self, x):
-            if x.shape[1] > 1:
-                raise NotImplemented("Can't handle multiple inputs")
-            else:
-                x = x.squeeze(1)
-            return x
+    def forward(self, x):
+        if x.shape[1] > 1:
+            raise NotImplemented("Can't handle multiple inputs")
+        else:
+            x = x.squeeze(1)
+        return x
 
 class SmallDeepSetMax(SmallDeepSet):
     def forward(self, x):
