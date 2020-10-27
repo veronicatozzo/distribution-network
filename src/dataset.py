@@ -21,7 +21,7 @@ from utils import  save_id_file, read_id_file
 # path_to_id_list = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/id_lists"
 path_to_outputs = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/outputs"
 path_to_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age"
-path_to_id_list = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_lists"
+path_to_id_list = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
 
 
 def select_one_patient_instance(ids_):
@@ -32,7 +32,7 @@ def select_one_patient_instance(ids_):
         patient_id = id_.split('_')[0]
         if patient_id in patient_ids:
             continue
-        ids.append(id_)
+        ids.add(id_)
         patient_ids.append(patient_id)
     return ids
 
@@ -102,7 +102,6 @@ class FullSampleDataset(Dataset):
         self.num_subsamples = num_subsamples
         self.permutate_subsamples =permute_subsamples
         self.normalizer = normalizer
-        self.test = test
         self.inputs = inputs
         
    
@@ -131,7 +130,7 @@ class FullSampleDataset(Dataset):
                 else:
                     xs.append(x[:self.num_subsamples, :])
             except:
-                xs.append(np.zeros(self.num_subsamples, 2))
+                xs.append(np.zeros((self.num_subsamples, 2)))
 
         ys = []
         mrn = self.ids_[index].split('_')[0]
@@ -139,7 +138,7 @@ class FullSampleDataset(Dataset):
         for output in self.outputs:
             ys.append(output[(output['mrn']==int(mrn)) & (output['date'].str.contains(date))].iloc[0, -1])
 
-        return xs, ys
+        return np.array(xs), np.array(ys)
 
     def __len__(self):
         if self.test:

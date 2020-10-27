@@ -22,21 +22,21 @@ class SmallDeepSet(nn.Module):
 class SmallDeepSetMax(SmallDeepSet):
     def forward(self, x):
         x = self.enc(x)
-        x = x.max(dim=1)[0]
+        x = x.max(dim=-2)[0]
         x = self.dec(x)
         return x
 
 class SmallDeepSetMean(SmallDeepSet):
     def forward(self, x):
         x = self.enc(x)
-        x = x.mean(dim=1)[0]
+        x = x.mean(dim=-2)[0]
         x = self.dec(x)
         return x
 
 class SmallDeepSetSum(SmallDeepSet):
     def forward(self, x):
         x = self.enc(x)
-        x = x.sum(dim=1)[0]
+        x = x.sum(dim=-2)[0]
         x = self.dec(x)
         return x
 
