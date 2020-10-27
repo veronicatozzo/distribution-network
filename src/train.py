@@ -4,6 +4,7 @@ import torch
 def train(model, name, optimizer, scheduler, train_generator, test_generator, start_on_gpu=True):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
+    # by default, reduction = mean when multiple outputs
     criterion = nn.MSELoss()
     step = 0
     best_loss = None
