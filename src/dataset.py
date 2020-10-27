@@ -71,8 +71,7 @@ class FullSampleDataset(Dataset):
             if stratify_by_patient:
                 ids_ = select_one_patient_instance(ids_)
             self.outputs.append(table_o)
-       
-        if (not os.path.exists(path_to_id_list+"/"+id_file)) and (id_file):
+        if (not os.path.exists(id_file)):
             aux = pd.DataFrame([[i.split('_')[0], i.split('_')[1]]
                                  for i in list(ids_)], columns = ['mrn', 'date'])
              #split train and test using shuffle split that cares for overlap 
@@ -121,8 +120,8 @@ class FullSampleDataset(Dataset):
 
                 if self.permutate_subsamples:
                     if x.shape[0] < self.num_subsamples: # corner case, added for soundness
-                        perm = np.choice(np.arange(x.shape[0]), 
-                                         self.num_subsamples, replace=True)
+                        perm = np.random.choice(np.arange(x.shape[0]), 
+                                            self.num_subsamples, replace=True)
                     else:
                         perm = np.choice(np.arange(x.shape[0]),
                                          self.num_subsamples, replace=False)
