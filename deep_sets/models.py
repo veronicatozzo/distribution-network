@@ -50,3 +50,12 @@ class SmallDeepSetSum(SmallDeepSet):
         x = self.dec(x)
         return x
 
+class TrivialMean(nn.Module):
+    def __init__(self, n_outputs=1, **kwargs):
+        super().__init__()
+        self.dec = nn.Linear(in_features=2, out_features=2)
+
+    def forward(self, x):
+        x = x.squeeze(1)
+        x = x.mean(dim=-2)
+        return self.dec(x)

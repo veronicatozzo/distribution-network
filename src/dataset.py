@@ -98,51 +98,60 @@ class FullSampleDataset(Dataset):
                         for i in self.train_ids_])
                 self._setstandardscaler.append(ss)
 
+        
         self.num_subsamples = num_subsamples
         self.permutate_subsamples =permute_subsamples
         self.normalizer = normalizer
         self.inputs = inputs
-        
-   
-    def __getitem__(self, index):
 
-        xs = []
-        for i, input_type in enumerate(self.inputs):
-            try:
-                filename = path_to_files+"/"+input_type+'/'+self.ids_[index]+".npy" 
-                x = np.load(filename)
-                if self.normalizer == 'all':
-                    x = self._setstandardscaler[i].transform([x])[0]
-                elif isinstance(self.normalizer, TransformerMixin):
-                    x = self.normalizer.fit_transform(x)
-                else:
-                    x = StandardScaler().fit_transform(x)
+        all_xs = []
+        all_ys = []
+        for index in range(len(self.ids_)):
+            xs = []
+            for i, input_type in enumerate(self.inputs):
+                try:
+                    filename = path_to_files+"/"+input_type+'/'+self.ids_[index]+".npy" 
+                    x = np.load(filename)
+                    if self.normalizer == 'all':
+                        x = self._setstandardscaler[i].transform([x])[0]
+                    elif isinstance(self.normalizer, TransformerMixin):
+                        x = self.normalizer.fit_transform(x)
+                    elif self.normalized == 'sample':
+                        x = StandardScaler().fit_transform(x)
 
-                if self.permutate_subsamples:
-                    if x.shape[0] < self.num_subsamples: # corner case, added for soundness
-                        perm = np.random.choice(np.arange(x.shape[0]), 
+                    if self.permutate_subsamples:
+                        if x.shape[0] < self.num_subsamples: # corner case, added for soundness
+                            perm = np.random.choice(np.arange(x.shape[0]), 
+                                                self.num_subsamples, replace=True)
+                        else:
+                            perm = np.random.permutation(np.arange(x.shape[0]))[:self.num_subsamples]
+                        xs.append(x[perm, :])
+                    else:
+                        if x.shape[0]>=self.num_subsamples:
+                            xs.append(x[:self.num_subsamples, :])
+                        else:
+                            perm = np.random.choice(np.arange(x.shape[0]),
                                             self.num_subsamples, replace=True)
-                    else:
-                        perm = np.random.permutation(np.arange(x.shape[0]))[:self.num_subsamples]
-                    xs.append(x[perm, :])
-                else:
-                    if x.shape[0]>=self.num_subsamples:
-                        xs.append(x[:self.num_subsamples, :])
-                    else:
-                        perm = np.random.choice(np.arange(x.shape[0]),
-                                         self.num_subsamples, replace=True)
-                        xs.append(x[perm, :])           
-                                
-            except:
-                xs.append(np.zeros((self.num_subsamples, 2)))
+                            xs.append(x[perm, :])           
+                                    
+                except:
+                    xs.append(np.zeros((self.num_subsamples, 2)))
+            ys = []
+            mrn = self.ids_[index].split('_')[0]
+            date = self.ids_[index].split('_')[1]
+            for output in self.outputs:
+                y = output[(output['mrn']==int(mrn)) & (output['date'].str.contains(date))].iloc[0, -1]
+                ys.append(y)
+            
+            all_xs.append(xs)
+            all_ys.append(ys)
+        dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.xs = torch.from_numpy(np.array(all_xs)).type(dtype).to(device)
+        self.ys = torch.from_numpy(np.array(all_ys)).type(dtype).to(device)
 
-        ys = []
-        mrn = self.ids_[index].split('_')[0]
-        date = self.ids_[index].split('_')[1]
-        for output in self.outputs:
-            ys.append(output[(output['mrn']==int(mrn)) & (output['date'].str.contains(date))].iloc[0, -1])
-
-        return np.array(xs), np.array(ys)
+    def __getitem__(self, index):
+        return self.xs[index], self.ys[index]
 
     def __len__(self):
         if self.test:
