@@ -43,5 +43,5 @@ def save_id_file(train, test, id_file):
 
 def read_id_file(id_file):
     with open(id_file, 'rb') as f:
-        to_read = pkl.load(to_save)
+        to_read = pkl.load(f)
     return to_read['train'], to_read['test']

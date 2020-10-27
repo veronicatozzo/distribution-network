@@ -54,8 +54,7 @@ class FullSampleDataset(Dataset):
                          for i in range(table_o.shape[0])])
             ids_ = ids_.union(table_ids)
             self.outputs.append(table_o)
-       
-        if (not os.path.exists(path_to_id_list+"/"+id_file)) and (id_file):
+        if (not os.path.exists(id_file)):
             aux = pd.DataFrame([[i.split('_')[0], i.split('_')[1]]
                                  for i in list(ids_)], columns = ['mrn', 'date'])
              #split train and test using shuffle split that cares for overlap 
@@ -105,8 +104,8 @@ class FullSampleDataset(Dataset):
 
                 if self.permutate_subsamples:
                     if x.shape[0] < self.num_subsamples: # corner case, added for soundness
-                        perm = np.choice(np.arange(x.shape[0]), 
-                                         self.num_subsamples, replace=True)
+                        perm = np.random.choice(np.arange(x.shape[0]), 
+                                            self.num_subsamples, replace=True)
                     else:
                         perm = np.random.permutation(
                                     np.arange(x.shape[0]))[:self.num_subsamples]
@@ -114,7 +113,7 @@ class FullSampleDataset(Dataset):
                 else:
                     xs.append(x[:self.num_subsamples, :])
             except:
-                xs.append(np.zeros(self.num_subsamples, 2))
+                xs.append(np.zeros((self.num_subsamples, 2)))
 
         ys = []
         mrn = self.ids_[index].split('_')[0]
