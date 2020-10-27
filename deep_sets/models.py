@@ -2,7 +2,7 @@ import torch.nn as nn
 
 
 class SmallDeepSet(nn.Module):
-    def __init__(self, n_outputs=1):
+    def __init__(self, n_outputs=1, **kwargs):
         super().__init__()
         self.enc = nn.Sequential(
             nn.Linear(in_features=2, out_features=64),

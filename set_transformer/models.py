@@ -1,7 +1,9 @@
 import torch.nn as nn
 
+from set_transformer.modules import SAB, PMA
+
 class SmallSetTransformer(nn.Module):
-    def __init__(self, n_outputs, n_inputs):
+    def __init__(self, n_outputs, n_inputs, **kwargs):
         super().__init__()
         num_heads = n_inputs * 4
         self.enc = nn.Sequential(
