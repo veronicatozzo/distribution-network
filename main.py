@@ -11,7 +11,7 @@ from src.dataset import FullSampleDataset
 from src.train import train
 
 
-os.environ["WANDB_API_KEY"] = "893130108141453e3e50e00010d3e3fced11c1e8"
+os.environ["WANDB_API_KEY"] = "ec22fec7bdd7579e0c42b8d29465922af4340148"  # "893130108141453e3e50e00010d3e3fced11c1e8"
 
 parser = argparse.ArgumentParser(description='Results summary')
 parser.add_argument('-i', '--inputs', metavar='N', type=str, nargs='+',
@@ -57,14 +57,15 @@ if __name__ == "__main__":
         name = args.name
     else:
         name = '_'.join([args.model, ','.join(args.outputs), ','.join(args.inputs)])
-    wandb.init(project="distribution-regression", name=name)
+    # wandb.init(project="distribution-regression", name=name)
+    wandb.init(project="blood-distribution", name=name)
     wandb.config.update(args)
 
     if args.id_file:
         id_file = args.id_file
     else:
         path_to_id_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
-        id_file = os.path.join(path_to_id_files, ','.join(args.outputs) + '_' + str("{:%B-%d-%Y}.txt".format(datetime.now())))
+        id_file = os.path.join(path_to_id_files, '_'.join([','.join(args.outputs), ','.join(args.inputs), str("{:%B-%d-%Y}.txt".format(datetime.now()))]))
 
     data_config = {
         'inputs': args.inputs,
@@ -91,7 +92,7 @@ if __name__ == "__main__":
                             pin_memory=False,
                             drop_last=True)
     
-    model_params = {'n_outputs': len(args.outputs)}
+    model_params = {'n_outputs': len(args.outputs), 'n_inputs': len(args.inputs)}
     model = model_dict[args.model](**model_params)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)

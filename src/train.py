@@ -23,9 +23,7 @@ def train(model, name, optimizer, scheduler, train_generator, test_generator):
             loss.backward()
             optimizer.step()
             step += 1
-        wandb.log({f"{name} train loss per epoch": np.mean(aux)}, step=epoch)
         scheduler.step()
-
         aux = []
         for x, y in test_generator:
             x, y = x.type(dtype).to(device), y.type(dtype).to(device)
@@ -33,7 +31,6 @@ def train(model, name, optimizer, scheduler, train_generator, test_generator):
             aux.append(loss.item())
             wandb.log({f"{name} test loss per step": loss}, step=step)
         test_loss = np.mean(aux)
-        wandb.log({f"{name} test loss per epoch": test_loss}, step=epoch)
         if not best_loss or (test_loss > best_loss):
             wandb.run.summary["best_loss"] = test_loss
             best_loss = test_loss
