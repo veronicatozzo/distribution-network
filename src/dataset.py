@@ -123,11 +123,16 @@ class FullSampleDataset(Dataset):
                         perm = np.random.choice(np.arange(x.shape[0]), 
                                             self.num_subsamples, replace=True)
                     else:
-                        perm = np.choice(np.arange(x.shape[0]),
-                                         self.num_subsamples, replace=False)
+                        perm = np.random.permutation(np.arange(x.shape[0]))[:self.num_subsamples]
                     xs.append(x[perm, :])
                 else:
-                    xs.append(x[:self.num_subsamples, :])
+                    if x.shape[0]>=self.num_subsamples:
+                        xs.append(x[:self.num_subsamples, :])
+                    else:
+                        perm = np.random.choice(np.arange(x.shape[0]),
+                                         self.num_subsamples, replace=True)
+                        xs.append(x[perm, :])           
+                                
             except:
                 xs.append(np.zeros((self.num_subsamples, 2)))
 
