@@ -26,9 +26,6 @@ parser.add_argument('--num_subsamples', type=int, help='number of samples to use
 parser.add_argument('--permute_subsamples', dest='permute_subsamples', action='store_true')
 parser.add_argument('--normalizer', type=str, help='name of the normalizer')
 
-parser.add_argument('model', metavar='N', type=str, nargs=',', default='',
-                    help='a list of strings denoting the prediction outputs')
-
 parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--num_workers', type=int, help='number of cpu workers in the data loader')
 
