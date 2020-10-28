@@ -31,7 +31,7 @@ class SmallDeepSetMax(SmallDeepSet):
     def forward(self, x):
         x = super().forward(x)
         x = self.enc(x)
-        x = torch.max(x, dim=-2)
+        x = torch.max(x, -2).values
         x = self.dec(x)
         return x
 
