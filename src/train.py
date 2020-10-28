@@ -31,7 +31,7 @@ def train(model, optimizer, scheduler, train_generator, test_generator):
             aux.append(loss.item())
             wandb.log({f"test loss per step": loss}, step=step)
         test_loss = np.mean(aux)
-        if not best_loss or (test_loss > best_loss):
+        if not best_loss or (test_loss < best_loss):
             wandb.run.summary["best_loss"] = test_loss
             best_loss = test_loss
     return model
