@@ -3,22 +3,22 @@ import torch.nn as nn
 
 
 class SmallDeepSet(nn.Module):
-    def __init__(self, n_outputs=1, **kwargs):
+    def __init__(self, n_outputs=1, n_enc_layers=4, n_hidden_units=64, n_dec_layers=1, **kwargs):
         super().__init__()
-        self.enc = nn.Sequential(
-            nn.Linear(in_features=2, out_features=64),
-            nn.ReLU(),
-            nn.Linear(in_features=64, out_features=64),
-            nn.ReLU(),
-            nn.Linear(in_features=64, out_features=64),
-            nn.ReLU(),
-            nn.Linear(in_features=64, out_features=64),
-        )
-        self.dec = nn.Sequential(
-            nn.Linear(in_features=64, out_features=64),
-            nn.ReLU(),
-            nn.Linear(in_features=64, out_features=n_outputs),
-        )
+        enc_layers = []
+        enc_layers.append(nn.Linear(in_features=2, out_features=n_hidden_units))
+        for i in range(n_enc_layers - 1):
+            enc_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
+            # don't add relu to last enc layer
+            if i < n_enc_layers - 2:
+                enc_layers.append(nn.ReLU())
+        self.enc = nn.Sequential(**enc_layers)
+        dec_layers = []
+        for i in range(n_dec_layers - 1):
+            dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
+            dec_layers.append(nn.ReLU())
+        dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_outputs))
+        self.dec = nn.Sequential(**dec_layers)
 
     def forward(self, x):
         if x.shape[1] > 1:

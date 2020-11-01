@@ -29,6 +29,10 @@ parser.add_argument('--normalizer', type=str, default='all', help='name of the n
 parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--num_workers', type=int, default=4, help='number of cpu workers in the data loader')
 
+parser.add_argument('--n_enc_layers', type=int, default=2)
+parser.add_argument('--n_dec_layers', type=int, default=2)
+parser.add_argument('--n_hidden_units', type=int, default=64)
+
 parser.add_argument('--lr', type=float, default=.001)
 parser.add_argument('--step_size', type=int, default=500)
 parser.add_argument('--gamma', type=int, default=.1)
@@ -94,7 +98,13 @@ if __name__ == "__main__":
                             pin_memory=False,
                             drop_last=True)
     
-    model_params = {'n_outputs': len(args.outputs), 'n_inputs': len(args.inputs)}
+    model_params = {
+        'n_outputs': len(args.outputs),
+        'n_inputs': len(args.inputs),
+        'n_enc_layers': args.n_enc_layers,
+        'n_dec_layers': args.n_dec_layers,
+        'n_hidden_units': args.n_hidden_units,
+    }
     model = model_dict[args.model](**model_params)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
