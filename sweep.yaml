@@ -19,4 +19,6 @@ parameters:
     values: [1, 2, 3, 4]
   n_hidden_units:
     values: [32, 64, 128]
+  id_file:
+    values: ["../balanced_age/id_files/mean0,mean1,median0,median1,std0_10,std1_10,skew0_100,skew1_100_rbc_October-28-2020.txt"]
   
