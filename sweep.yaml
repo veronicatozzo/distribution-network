@@ -1,0 +1,22 @@
+program: main.py
+method: bayes
+metric:
+  name: best_loss
+  goal: minimize
+parameters:
+  lr:
+    min: 0.001
+    max: 0.1
+  inputs:
+    values: ["rbc"]
+  outputs:
+    values: ["mean0 mean1 median0 median1 std0_10 std1_10 skew0_100 skew1_100"]
+  model:
+    values: ["SetTransformer", "DeepSetsMax", "DeepSetsMean", "DeepSetsSum"]
+  n_enc_layers:
+    values: [1, 2, 3, 4]
+  n_dec_layers:
+    values: [1, 2, 3, 4]
+  n_hidden_units:
+    values: [32, 64, 128]
+  
