@@ -13,18 +13,21 @@ if __name__ == "__main__":
         moments.append({
             'mrn': os.path.basename(fname).split('_')[0],
             'date': os.path.basename(fname).split('_')[1].split('npy')[0],
-            'mean0': arr[:, 0].mean(),
-            'std0': arr[:, 0].std(),
-            'skew0': skew(arr[:, 0]),
-            'median0': np.median(arr[:, 0]),
-            'mean1': arr[:, 1].mean(),
-            'std1': arr[:, 1].std(),
-            'skew1': skew(arr[:, 1]),
-            'median1': np.median(arr[:, 1]),
+            # 'mean0': arr[:, 0].mean(),
+            # 'std0': arr[:, 0].std(),
+            # 'skew0': skew(arr[:, 0]),
+            # 'median0': np.median(arr[:, 0]),
+            # 'mean1': arr[:, 1].mean(),
+            # 'std1': arr[:, 1].std(),
+            # 'skew1': skew(arr[:, 1]),
+            # 'median1': np.median(arr[:, 1]),
+            '75quantile0': np.quantile(arr[:, 0], .75),
+            '75quantile1': np.quantile(arr[:, 0], .75),
         })
     keys = moments[0].keys()
     df = pd.DataFrame(moments)
     for key in keys:
         if key not in ['mrn', 'date']:
-            df[["mrn", "date", key]].to_csv(key + ".csv")
+            df[["mrn", "date", key]].to_csv(os.path.join(output_dir, key + ".csv"))
+
 

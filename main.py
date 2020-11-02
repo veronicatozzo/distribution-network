@@ -11,7 +11,7 @@ from src.dataset import FullSampleDataset
 from src.train import train
 
 
-os.environ["WANDB_API_KEY"] = "ec22fec7bdd7579e0c42b8d29465922af4340148"  # "893130108141453e3e50e00010d3e3fced11c1e8"
+# os.environ["WANDB_API_KEY"] = "ec22fec7bdd7579e0c42b8d29465922af4340148"  # "893130108141453e3e50e00010d3e3fced11c1e8"
 
 parser = argparse.ArgumentParser(description='Results summary')
 parser.add_argument('-i', '--inputs', metavar='N', type=str, nargs='+',
@@ -62,10 +62,11 @@ if __name__ == "__main__":
     if args.name:
         name = args.name
     else:
-        name = '_'.join([args.model, ','.join(args.outputs), ','.join(args.inputs)])
+        # name = '_'.join([args.model, ','.join(args.outputs), ','.join(args.inputs)])
+        name = '_'.join([args.model, 'full', 'rbc'])
     # wandb.init(project="distribution-regression", name=name)
     wandb.init(project="blood-distribution-moments", name=name)
-    wandb.config.update(args)
+    wandb.config.update(args, allow_val_change=True)
 
     if args.id_file:
         id_file = args.id_file
