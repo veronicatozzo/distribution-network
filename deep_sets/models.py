@@ -12,13 +12,13 @@ class SmallDeepSet(nn.Module):
             # don't add relu to last enc layer
             if i < n_enc_layers - 2:
                 enc_layers.append(nn.ReLU())
-        self.enc = nn.Sequential(**enc_layers)
+        self.enc = nn.Sequential(*enc_layers)
         dec_layers = []
         for i in range(n_dec_layers - 1):
             dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
             dec_layers.append(nn.ReLU())
         dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_outputs))
-        self.dec = nn.Sequential(**dec_layers)
+        self.dec = nn.Sequential(*dec_layers)
 
     def forward(self, x):
         if x.shape[1] > 1:
