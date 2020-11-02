@@ -154,7 +154,7 @@ class SetStandardScaler(StandardScaler):
         check_is_fitted(self)
 
         copy = copy if copy is not None else self.copy
-        X = np.asarrßy(X)
+        X = np.asarray(X)
         if copy:
             X = X.copy()
         if self.with_std:

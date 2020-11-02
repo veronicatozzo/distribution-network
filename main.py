@@ -96,6 +96,6 @@ if __name__ == "__main__":
     model = model_dict[args.model](**model_params)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
-    model = train(model, args.name, optimizer, scheduler, train_generator, test_generator)
+    model = train_nn(model, args.name, optimizer, scheduler, train_generator, test_generator)
     if args.save:
         torch.save(model, args.name + '.pt')

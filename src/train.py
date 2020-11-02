@@ -1,10 +1,19 @@
+import warnings 
+
 import wandb
 import numpy as np
 import torch
 import torch.nn as nn
 
+from sklearn.pipeline import Pipeline
+from sklearn.svm import SVR, SVC
+from sklearn.metrics import mean_squared_error
+from skl_groups.divergences import KNNDivergenceEstimator
 
-def train(model, name, optimizer, scheduler, train_generator, test_generator):
+from skl_groups.kernels import PairwisePicker, Symmetrize, RBFize, ProjectPSD
+
+
+def train_nn(model, name, optimizer, scheduler, train_generator, test_generator):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     # by default, reduction = mean when multiple outputs
@@ -34,4 +43,48 @@ def train(model, name, optimizer, scheduler, train_generator, test_generator):
         if not best_loss or (test_loss > best_loss):
             wandb.run.summary["best_loss"] = test_loss
             best_loss = test_loss
+    return model
+
+
+
+
+def train_KNNDivergence(divergence, X_tr,  y_tr, X_ts, y_ts, k=5, C=1)
+    """
+    Parameters
+    ----------
+    divergence: string, 
+        Type of divergence to use when estimating distance among distribution. 
+        Options 'kl','renyi:.8','tsallis:.8','hellinger','bc','l2','linear', 'jensen-shannon'.
+    X_tr: array-like
+        Training data
+    y_tr: array-like
+        Training output
+    X_ts: array-like
+        Test data
+    y_ts: array-like
+        Test output
+    k: int, optional default=5
+        Number of k-nearest niehgbours to use for the estimation of the distances. 
+
+    C: float, optional default=1
+        Regularization parameter for SVM.
+    """
+    warnings.simplefilter('ignore')
+
+    model = Pipeline([
+        ('divs', KNNDivergenceEstimator(div_funcs=[divergence], Ks=[k])),
+        ('pick', PairwisePicker((0, 0))),
+        ('symmetrize', Symmetrize()),
+        ('rbf', RBFize(gamma=1, scale_by_median=True)),
+        ('project', ProjectPSD()),
+        ('svm', SVR(C=C, kernel='precomputed')),
+    ])
+    X_tr = [x for x in X_tr]
+    y_tr = [y for y in y_tr]
+    X_ts = [x for x in X_ts]
+    y_ts = [y for y in y_ts]
+    
+    model.fit(X_tr, y_tr)
+    train_score = mean_squared_error(y_tr, model.predict(X_tr))
+    test_score = mean_squared_error(y_ts, model.predict(X_ts))
     return model
