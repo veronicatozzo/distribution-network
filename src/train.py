@@ -1,3 +1,4 @@
+import os
 import warnings 
 
 import wandb
@@ -48,7 +49,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator)
 
 
 
-def train_KNNDivergence(divergence, X_tr,  y_tr, X_ts, y_ts, k=5, C=1)
+def train_KNNDivergence(divergence, X_tr,  y_tr, X_ts, y_ts, k=5, C=1):
     """
     Parameters
     ----------
@@ -87,4 +88,35 @@ def train_KNNDivergence(divergence, X_tr,  y_tr, X_ts, y_ts, k=5, C=1)
     model.fit(X_tr, y_tr)
     train_score = mean_squared_error(y_tr, model.predict(X_tr))
     test_score = mean_squared_error(y_ts, model.predict(X_ts))
+    #print(train_score, test_score)
     return model
+
+
+def train_distribution2distrbution(X_tr,  y_tr, X_ts, y_ts):
+    import matlab.engine
+    import matlab
+    eng = matlab.engine.start_matlab()
+
+    path = os.path.realpath(__file__).split('/')[:-2]
+    path ='/'.join(path) + '/distribution2distribution'
+    eng.addpath(eng.genpath(path), nargout=0)
+
+    x_tr = [matlab.double(x.tolist()) for x in X_tr]
+    y_tr_ = matlab.double([[y] for y in y_tr])
+    osp = eng.osde(x_tr)
+    PCin = osp['pc']
+    basis_inds = osp['inds']    
+
+    [B, rks, tst_stats, cv_stats] = eng.rks_ridge(PCin, y_tr_, nargout=4)
+    y_tr_est = eng.predict(PCin, rks, B)
+
+    x_ts = [matlab.double(x.tolist()) for x in X_ts]
+    osp = eng.osde(x_ts, {'inds': basis_inds})
+    PCpred = osp['pc']
+    y_ts_est = eng.predict(PCpred, rks, B)
+
+    train_score = mean_squared_error(y_tr, np.array(y_tr_est))
+    test_score = mean_squared_error(y_ts, np.array(y_ts_est))
+
+
+    #print(train_score, test_score)
