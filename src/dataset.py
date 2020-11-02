@@ -118,7 +118,9 @@ class FullSampleDataset(Dataset):
                 else:
                     x = StandardScaler().fit_transform(x)
 
-                if self.permutate_subsamples:
+                if self.num_subsamples == -1:
+                    xs.append(x)
+                elif self.permutate_subsamples:
                     if x.shape[0] < self.num_subsamples: # corner case, added for soundness
                         perm = np.random.choice(np.arange(x.shape[0]), 
                                             self.num_subsamples, replace=True)
@@ -142,6 +144,9 @@ class FullSampleDataset(Dataset):
         for output in self.outputs:
             ys.append(output[(output['mrn']==int(mrn)) & (output['date'].str.contains(date))].iloc[0, -1])
 
+        if self.num_subsamples == -1:
+            return xs, ys
+
         return np.array(xs), np.array(ys)
 
     def __len__(self):
@@ -149,3 +154,4 @@ class FullSampleDataset(Dataset):
             return len(self.test_ids_)
         else:
             return len(self.train_ids_)
+

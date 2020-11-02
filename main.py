@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from deep_sets.models import SmallDeepSetMax, SmallDeepSetMean, SmallDeepSetSum
 from set_transformer.models import SmallSetTransformer
 from src.dataset import FullSampleDataset
-from src.train import train
+from src.train import train_nn, train_KNNDivergence, train_distribution2distrbution
 
 
 os.environ["WANDB_API_KEY"] = "ec22fec7bdd7579e0c42b8d29465922af4340148"  # "893130108141453e3e50e00010d3e3fced11c1e8"
@@ -22,16 +22,21 @@ parser.add_argument('-m', '--model', type=str,
                     help='string name for model type')
 
 parser.add_argument('--id_file', type=str, default='', help='filename of the ids to use')
-parser.add_argument('--num_subsamples', type=int, default=100, help='number of samples to use in each distribution')
+parser.add_argument('--num_subsamples', type=int, default=100,
+                    help='number of samples to use in each distribution. note that non-neural models use all subsamples if -1')
 parser.add_argument('--permute_subsamples', dest='permute_subsamples', action='store_true')
 parser.add_argument('--normalizer', type=str, help='name of the normalizer')
 
+# Neural network hyperparameters
 parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--num_workers', type=int, default=4, help='number of cpu workers in the data loader')
-
 parser.add_argument('--lr', type=float, default=.001)
 parser.add_argument('--step_size', type=int, default=50)
 parser.add_argument('--gamma', type=int, default=.1)
+
+# KNN Divergence hyperparameters
+parser.add_argument('--k', type=int, default=5)
+parser.add_argument('--C', type=float, default=1.)
 
 parser.add_argument('--name', type=str, help='name of the experiment in wandb',
                     default='')
@@ -79,23 +84,32 @@ if __name__ == "__main__":
     # dates inputs outputs
     train_data = FullSampleDataset(test=False, **data_config)
     test_data = FullSampleDataset(test=True, **data_config)
-    train_generator = DataLoader(train_data,
-                            batch_size=args.batch_size,
-                            shuffle=True,
-                            num_workers=args.num_workers,
-                            pin_memory=False,
-                            drop_last=True)
-    test_generator = DataLoader(test_data,
-                            batch_size=args.batch_size,
-                            shuffle=True,
-                            num_workers=args.num_workers,
-                            pin_memory=False,
-                            drop_last=True)
-    
-    model_params = {'n_outputs': len(args.outputs), 'n_inputs': len(args.inputs)}
-    model = model_dict[args.model](**model_params)
-    optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
-    model = train_nn(model, args.name, optimizer, scheduler, train_generator, test_generator)
-    if args.save:
-        torch.save(model, args.name + '.pt')
+    if args.model == 'KNNDiv':
+        X_tr, y_tr = zip(*[train_data[i] for i in range(len(train_data))])
+        X_ts, y_ts = zip(*[train_data[i] for i in range(len(test_data))])
+        train_KNNDivergence(X_tr, y_tr, X_ts, y_ts, args.k, args.C)
+    elif args.model == 'DistReg':
+        X_tr, y_tr = zip(*[train_data[i] for i in range(len(train_data))])
+        X_ts, y_ts = zip(*[train_data[i] for i in range(len(test_data))])
+        train_distribution2distrbution(X_tr, y_tr, X_ts, y_ts)
+    else:
+        train_generator = DataLoader(train_data,
+                                batch_size=args.batch_size,
+                                shuffle=True,
+                                num_workers=args.num_workers,
+                                pin_memory=False,
+                                drop_last=True)
+        test_generator = DataLoader(test_data,
+                                batch_size=args.batch_size,
+                                shuffle=True,
+                                num_workers=args.num_workers,
+                                pin_memory=False,
+                                drop_last=True)
+        
+        model_params = {'n_outputs': len(args.outputs), 'n_inputs': len(args.inputs)}
+        model = model_dict[args.model](**model_params)
+        optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
+        model = train_nn(model, args.name, optimizer, scheduler, train_generator, test_generator)
+        if args.save:
+            torch.save(model, args.name + '.pt')
