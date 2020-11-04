@@ -80,17 +80,22 @@ def train_KNNDivergence(divergence, X_tr,  y_tr, X_ts, y_ts, k=5, C=1):
         ('project', ProjectPSD()),
         ('svm', SVR(C=C, kernel='precomputed')),
     ])
-    # X_tr = [x for x in X_tr]
-    # y_tr = [y for y in y_tr]
-    # X_ts = [x for x in X_ts]
-    # y_ts = [y for y in y_ts]
+    print('y_ts', y_ts)
+    X_tr = [x for x in X_tr]
+    y_tr = [y for y in y_tr]
+    X_ts = [x for x in X_ts]
+    y_ts = [y for y in y_ts]
+    # X_tr = list(X_tr)
+    # y_tr - list(y_tr)
+    # X_ts = list(X_ts)
+    # y_ts = list(y_ts)
     
     model.fit(X_tr, y_tr)
     train_score = mean_squared_error(y_tr, model.predict(X_tr))
     test_score = mean_squared_error(y_ts, model.predict(X_ts))
-    wandb.log({'train_mse': train_score, 'test_mse': test_score})
+    # wandb.log({'train_mse': train_score, 'test_mse': test_score})
     #print(train_score, test_score)
-    return model
+    return train_score, test_score
 
 
 def train_distribution2distrbution(X_tr,  y_tr, X_ts, y_ts):
@@ -101,7 +106,7 @@ def train_distribution2distrbution(X_tr,  y_tr, X_ts, y_ts):
     path = os.path.realpath(__file__).split('/')[:-2]
     path ='/'.join(path) + '/distribution2distribution'
     eng.addpath(eng.genpath(path), nargout=0)
-
+    print(X_tr.shape)
     x_tr = [matlab.double(x.tolist()) for x in X_tr]
     y_tr_ = matlab.double([[y] for y in y_tr])
     osp = eng.osde(x_tr)
@@ -118,7 +123,7 @@ def train_distribution2distrbution(X_tr,  y_tr, X_ts, y_ts):
 
     train_score = mean_squared_error(y_tr, np.array(y_tr_est))
     test_score = mean_squared_error(y_ts, np.array(y_ts_est))
-    wandb.log({'train_mse': train_score, 'test_mse': test_score})
+    # wandb.log({'train_mse': train_score, 'test_mse': test_score})
 
 
-    #print(train_score, test_score)
+    return train_score, test_score

@@ -1,7 +1,11 @@
 import os
+import csv
+import sys
+sys.path.append("/misc/vlgscratch5/RanganathGroup/lily/miniconda3/envs/blood_matlab/lib/python3.7/site-packages/")
 import argparse
 from datetime import datetime
 import wandb
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
@@ -37,6 +41,7 @@ parser.add_argument('--gamma', type=int, default=.1)
 # KNN Divergence hyperparameters
 parser.add_argument('--k', type=int, default=5)
 parser.add_argument('--C', type=float, default=1.)
+parser.add_argument('--div', type=str, default='kl')
 
 parser.add_argument('--name', type=str, help='name of the experiment in wandb',
                     default='')
@@ -63,8 +68,8 @@ if __name__ == "__main__":
     else:
         name = '_'.join([args.model, ','.join(args.outputs), ','.join(args.inputs)])
     # wandb.init(project="distribution-regression", name=name)
-    wandb.init(project="blood-distribution", name=name)
-    wandb.config.update(args)
+    # wandb.init(project="blood-distribution", name=name)
+    # wandb.config.update(args)
 
     if args.id_file:
         id_file = args.id_file
@@ -84,14 +89,27 @@ if __name__ == "__main__":
     # dates inputs outputs
     train_data = FullSampleDataset(test=False, **data_config)
     test_data = FullSampleDataset(test=True, **data_config)
-    if args.model == 'KNNDiv':
+    print('created data')
+    if args.model in ['KNNDiv', 'DistReg']:
         X_tr, y_tr = zip(*[train_data[i] for i in range(len(train_data))])
         X_ts, y_ts = zip(*[train_data[i] for i in range(len(test_data))])
-        train_KNNDivergence(X_tr, y_tr, X_ts, y_ts, args.k, args.C)
-    elif args.model == 'DistReg':
-        X_tr, y_tr = zip(*[train_data[i] for i in range(len(train_data))])
-        X_ts, y_ts = zip(*[train_data[i] for i in range(len(test_data))])
-        train_distribution2distrbution(X_tr, y_tr, X_ts, y_ts)
+        X_tr = np.squeeze(np.array(list(X_tr)), axis=1)
+        if len(args.outputs) > 1:
+            raise NotImplemented("KNNDiv doesn't work for multi-outputs")
+        y_tr = np.array(list(y_tr)) # .flatten()
+        X_ts = np.squeeze(np.array(list(X_ts)), axis=1)
+        y_ts = np.array(list(y_ts)) # .flatten()
+        print(y_tr)
+        print(X_tr.shape)
+        if args.model == 'KNNDiv':
+            train_score, test_score = train_KNNDivergence(args.div, X_tr, y_tr, X_ts, y_ts, args.k, args.C)
+        elif args.model == 'DistReg':
+            y_tr = y_tr.flatten()
+            y_ts = y_ts.flatten()
+            train_score, test_score = train_distribution2distrbution(X_tr, y_tr, X_ts, y_ts)
+        with open('baselines.csv', 'a') as f:
+            writer = csv.writer(f)
+            writer.writerow([','.join(args.inputs), ','.join(args.outputs), model, args.div, args.k, args.C, train_score, test_score])
     else:
         train_generator = DataLoader(train_data,
                                 batch_size=args.batch_size,
