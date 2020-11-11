@@ -161,7 +161,7 @@ def train_KNNMoments(X_tr,  y_tr, X_ts, y_ts, k=5, name=''):
         model = KNeighborsRegressor(n_neighbors=k)
     model.fit(X_tr, y_tr)
     preds = model.predict(X_ts)
-    pd.DataFrame.from_dict({'preds': preds, 'labels': y_ts}).to_csv(name + '.csv')
+    pd.DataFrame.from_dict({'preds': preds.flatten(), 'labels': y_ts.flatten()}).to_csv(name + '.csv')
     if classification:
         train_score = accuracy_score(y_tr, model.predict(X_tr))
         test_score = accuracy_score(y_ts, preds)
