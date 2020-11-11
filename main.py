@@ -102,14 +102,14 @@ if __name__ == "__main__":
         print(y_tr)
         print(X_tr.shape)
         if args.model == 'KNNDiv':
-            train_score, test_score = train_KNNDivergence(args.div, X_tr, y_tr, X_ts, y_ts, args.k, args.C)
+            train_score, test_score = train_KNNDivergence(args.div, X_tr, y_tr, X_ts, y_ts, args.k, args.C, name=name)
         elif args.model == 'DistReg':
             y_tr = y_tr.flatten()
             y_ts = y_ts.flatten()
             train_score, test_score = train_distribution2distrbution(X_tr, y_tr, X_ts, y_ts)
         with open('baselines.csv', 'a') as f:
             writer = csv.writer(f)
-            writer.writerow([','.join(args.inputs), ','.join(args.outputs), model, args.div, args.k, args.C, train_score, test_score])
+            writer.writerow([','.join(args.inputs), ','.join(args.outputs), args.model, args.div, args.k, args.C, train_score, test_score])
     else:
         train_generator = DataLoader(train_data,
                                 batch_size=args.batch_size,

@@ -3,12 +3,13 @@ import warnings
 
 import wandb
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 
 from sklearn.pipeline import Pipeline
 from sklearn.svm import SVR, SVC
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, accuracy_score
 from skl_groups.divergences import KNNDivergenceEstimator
 
 from skl_groups.kernels import PairwisePicker, Symmetrize, RBFize, ProjectPSD
@@ -49,7 +50,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator)
 
 
 
-def train_KNNDivergence(divergence, X_tr,  y_tr, X_ts, y_ts, k=5, C=1):
+def train_KNNDivergence(divergence, X_tr,  y_tr, X_ts, y_ts, k=5, C=1, name=''):
     """
     Parameters
     ----------
@@ -72,17 +73,19 @@ def train_KNNDivergence(divergence, X_tr,  y_tr, X_ts, y_ts, k=5, C=1):
     """
     warnings.simplefilter('ignore')
 
-    model = Pipeline([
+    pipeline = [
         ('divs', KNNDivergenceEstimator(div_funcs=[divergence], Ks=[k])),
         ('pick', PairwisePicker((0, 0))),
         ('symmetrize', Symmetrize()),
         ('rbf', RBFize(gamma=1, scale_by_median=True)),
         ('project', ProjectPSD()),
-    ])
-    if isinstance(y_tr[0][0], str) or isinstance(y_tr[0][0], bool):
-        model.append(('svm', SVC(C=C, kernel='precomputed')),)
+    ]
+    classification = isinstance(y_tr[0][0], str) or isinstance(y_tr[0][0], bool)
+    if classification:
+        pipeline.append(('svm', SVC(C=C, kernel='precomputed')),)
     else:
-        model.append(('svm', SVR(C=C, kernel='precomputed')),)
+        pipeline.append(('svm', SVR(C=C, kernel='precomputed')),)
+    model = Pipeline(pipeline)
     print('y_ts', y_ts)
     X_tr = [x for x in X_tr]
     y_tr = [y for y in y_tr]
@@ -94,8 +97,14 @@ def train_KNNDivergence(divergence, X_tr,  y_tr, X_ts, y_ts, k=5, C=1):
     # y_ts = list(y_ts)
     
     model.fit(X_tr, y_tr)
-    train_score = mean_squared_error(y_tr, model.predict(X_tr))
-    test_score = mean_squared_error(y_ts, model.predict(X_ts))
+    preds = model.predict(X_ts)
+    pd.DataFrame.from_dict({'preds': preds, 'labels': y_ts}).to_csv(name + '.csv')
+    if classification:
+        train_score = accuracy_score(y_tr, model.predict(X_tr))
+        test_score = accuracy_score(y_ts, preds)
+    else:
+        train_score = mean_squared_error(y_tr, model.predict(X_tr))
+        test_score = mean_squared_error(y_ts, model.predict(X_ts))
     # wandb.log({'train_mse': train_score, 'test_mse': test_score})
     #print(train_score, test_score)
     return train_score, test_score
