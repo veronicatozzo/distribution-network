@@ -106,7 +106,7 @@ if __name__ == "__main__":
         elif args.model == 'DistReg':
             y_tr = y_tr.flatten()
             y_ts = y_ts.flatten()
-            train_score, test_score = train_distribution2distrbution(X_tr, y_tr, X_ts, y_ts)
+            train_score, test_score = train_distribution2distrbution(X_tr, y_tr, X_ts, y_ts, name=name)
         elif args.model == 'KNN':
             train_score, test_score = train_KNNMoments(X_tr, y_tr, X_ts, y_ts, args.k, name=name)
         with open('baselines.csv', 'a') as f:

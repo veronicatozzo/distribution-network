@@ -82,13 +82,12 @@ def train_KNNDivergence(divergence, X_tr,  y_tr, X_ts, y_ts, k=5, C=1, name=''):
         ('rbf', RBFize(gamma=1, scale_by_median=True)),
         ('project', ProjectPSD()),
     ]
-    classification = isinstance(y_tr[0][0], str) or isinstance(y_tr[0][0], bool)
+    classification = isinstance(y_tr[0][0], str) or isinstance(y_tr[0][0], bool) or isinstance(y_tr[0][0], np.bool_)
     if classification:
         pipeline.append(('svm', SVC(C=C, kernel='precomputed')),)
     else:
         pipeline.append(('svm', SVR(C=C, kernel='precomputed')),)
     model = Pipeline(pipeline)
-    print('y_ts', y_ts)
     X_tr = [x for x in X_tr]
     y_tr = [y for y in y_tr]
     X_ts = [x for x in X_ts]
@@ -100,10 +99,10 @@ def train_KNNDivergence(divergence, X_tr,  y_tr, X_ts, y_ts, k=5, C=1, name=''):
     
     model.fit(X_tr, y_tr)
     preds = model.predict(X_ts)
-    pd.DataFrame.from_dict({'preds': preds, 'labels': y_ts}).to_csv(name + '.csv')
+    pd.DataFrame.from_dict({'preds': preds, 'labels': np.array(y_ts).flatten()}).to_csv(name + '.csv')
     if classification:
-        train_score = accuracy_score(y_tr, model.predict(X_tr))
-        test_score = accuracy_score(y_ts, preds)
+        train_score = accuracy_score(np.array(y_tr).flatten(), model.predict(X_tr))
+        test_score = accuracy_score(np.array(y_ts).flatten(), preds)
     else:
         train_score = mean_squared_error(y_tr, model.predict(X_tr))
         test_score = mean_squared_error(y_ts, model.predict(X_ts))
@@ -112,7 +111,7 @@ def train_KNNDivergence(divergence, X_tr,  y_tr, X_ts, y_ts, k=5, C=1, name=''):
     return train_score, test_score
 
 
-def train_distribution2distrbution(X_tr,  y_tr, X_ts, y_ts):
+def train_distribution2distrbution(X_tr,  y_tr, X_ts, y_ts, name=''):
     import matlab.engine
     import matlab
     eng = matlab.engine.start_matlab()
@@ -120,7 +119,6 @@ def train_distribution2distrbution(X_tr,  y_tr, X_ts, y_ts):
     path = os.path.realpath(__file__).split('/')[:-2]
     path ='/'.join(path) + '/distribution2distribution'
     eng.addpath(eng.genpath(path), nargout=0)
-    print(X_tr.shape)
     x_tr = [matlab.double(x.tolist()) for x in X_tr]
     y_tr_ = matlab.double([[y] for y in y_tr])
     osp = eng.osde(x_tr)
@@ -137,6 +135,7 @@ def train_distribution2distrbution(X_tr,  y_tr, X_ts, y_ts):
 
     train_score = mean_squared_error(y_tr, np.array(y_tr_est))
     test_score = mean_squared_error(y_ts, np.array(y_ts_est))
+    pd.DataFrame.from_dict({'preds': y_ts_est, 'labels': y_ts}).to_csv(name + '.csv')
     # wandb.log({'train_mse': train_score, 'test_mse': test_score})
 
 
@@ -154,7 +153,7 @@ def get_moments(X):
 def train_KNNMoments(X_tr,  y_tr, X_ts, y_ts, k=5, name=''):
     X_tr = get_moments(X_tr)
     X_ts = get_moments(X_ts)
-    classification = isinstance(y_tr[0][0], str) or isinstance(y_tr[0][0], bool)
+    classification = isinstance(y_tr[0][0], str) or isinstance(y_tr[0][0], bool) or isinstance(y_tr[0][0], np.bool_)
     if classification:
         model = KNeighborsClassifier(n_neighbors=k)
     else:
