@@ -78,8 +78,11 @@ def train_KNNDivergence(divergence, X_tr,  y_tr, X_ts, y_ts, k=5, C=1):
         ('symmetrize', Symmetrize()),
         ('rbf', RBFize(gamma=1, scale_by_median=True)),
         ('project', ProjectPSD()),
-        ('svm', SVR(C=C, kernel='precomputed')),
     ])
+    if isinstance(y_tr[0][0], str) or isinstance(y_tr[0][0], bool):
+        model.append(('svm', SVC(C=C, kernel='precomputed')),)
+    else:
+        model.append(('svm', SVR(C=C, kernel='precomputed')),)
     print('y_ts', y_ts)
     X_tr = [x for x in X_tr]
     y_tr = [y for y in y_tr]
