@@ -7,6 +7,8 @@ import pandas as pd
 import torch
 import torch.nn as nn
 
+from scipy.stats import kurtosis, skew
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.svm import SVR, SVC
 from sklearn.metrics import mean_squared_error, accuracy_score
@@ -138,4 +140,32 @@ def train_distribution2distrbution(X_tr,  y_tr, X_ts, y_ts):
     # wandb.log({'train_mse': train_score, 'test_mse': test_score})
 
 
+    return train_score, test_score
+
+
+def get_moments(X):
+    means = np.mean(X, axis=1)
+    stds = np.std(X, axis=1)
+    skews = skew(X, axis=1)
+    kurtoses = kurtosis(X, axis=1)
+    return np.concatenate([means, stds, skews, kurtoses], axis=1)
+
+
+def train_KNNMoments(X_tr,  y_tr, X_ts, y_ts, k=5, name=''):
+    X_tr = get_moments(X_tr)
+    X_ts = get_moments(X_ts)
+    classification = isinstance(y_tr[0][0], str) or isinstance(y_tr[0][0], bool)
+    if classification:
+        model = KNeighborsClassifier(n_neighbors=k)
+    else:
+        model = KNeighborsRegressor(n_neighbors=k)
+    model.fit(X_tr, y_tr)
+    preds = model.predict(X_ts)
+    pd.DataFrame.from_dict({'preds': preds, 'labels': y_ts}).to_csv(name + '.csv')
+    if classification:
+        train_score = accuracy_score(y_tr, model.predict(X_tr))
+        test_score = accuracy_score(y_ts, preds)
+    else:
+        train_score = mean_squared_error(y_tr, model.predict(X_tr))
+        test_score = mean_squared_error(y_ts, model.predict(X_ts))
     return train_score, test_score

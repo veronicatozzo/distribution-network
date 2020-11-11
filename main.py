@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from deep_sets.models import SmallDeepSetMax, SmallDeepSetMean, SmallDeepSetSum
 from set_transformer.models import SmallSetTransformer
 from src.dataset import FullSampleDataset
-from src.train import train_nn, train_KNNDivergence, train_distribution2distrbution
+from src.train import train_nn, train_KNNDivergence, train_distribution2distrbution, train_KNNMoments
 
 
 os.environ["WANDB_API_KEY"] = "ec22fec7bdd7579e0c42b8d29465922af4340148"  # "893130108141453e3e50e00010d3e3fced11c1e8"
@@ -90,7 +90,7 @@ if __name__ == "__main__":
     train_data = FullSampleDataset(test=False, **data_config)
     test_data = FullSampleDataset(test=True, **data_config)
     print('created data')
-    if args.model in ['KNNDiv', 'DistReg']:
+    if args.model in ['KNNDiv', 'DistReg', 'KNN']:
         X_tr, y_tr = zip(*[train_data[i] for i in range(len(train_data))])
         X_ts, y_ts = zip(*[train_data[i] for i in range(len(test_data))])
         X_tr = np.squeeze(np.array(list(X_tr)), axis=1)
@@ -107,6 +107,8 @@ if __name__ == "__main__":
             y_tr = y_tr.flatten()
             y_ts = y_ts.flatten()
             train_score, test_score = train_distribution2distrbution(X_tr, y_tr, X_ts, y_ts)
+        elif args.model == 'KNN':
+            train_score, test_score = train_KNNMoments(X_tr, y_tr, X_ts, y_ts, args.k, name=name)
         with open('baselines.csv', 'a') as f:
             writer = csv.writer(f)
             writer.writerow([','.join(args.inputs), ','.join(args.outputs), args.model, args.div, args.k, args.C, train_score, test_score])
