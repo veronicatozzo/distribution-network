@@ -75,8 +75,12 @@ class FullSampleDataset(Dataset):
             aux = pd.DataFrame([[i.split('_')[0], i.split('_')[1]]
                                  for i in list(ids_)], columns = ['mrn', 'date'])
              #split train and test using shuffle split that cares for overlap 
-            train, test = next(shuffle_split_no_overlapping_patients(aux, 
-                                        train=0.8, n_splits=5))
+            if str(o).lower() == 'age'  or str(o).lower() == 'age65':
+                train, test = next(shuffle_split_no_overlapping_patients(aux, 
+                                            train=0.8, n_splits=5, balance_age=True))
+            else:
+                train, test = next(shuffle_split_no_overlapping_patients(aux, 
+                                            train=0.8, n_splits=5, balance_age=False))
             self.test_ids_ = np.array(list(ids_))[test]
             self.train_ids_ =  np.array(list(ids_))[train]
             save_id_file(self.train_ids_, self.test_ids_, id_file)
