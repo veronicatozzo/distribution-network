@@ -113,6 +113,9 @@ for si = 1:nsigma2s
     else
         Phi = sqrt(1/D)*[cos(sqrt(1/sigma2)*XW(~tst_set,:)) sin(sqrt(1/sigma2)*XW(~tst_set,:))];
     end
+    
+    
+    
     % regress based on random features
     rreg = reg_func(Phi, Y(~tst_set,:), reg_opts);
     hol_mses(si,:) = rreg.cv.lam_mse;
