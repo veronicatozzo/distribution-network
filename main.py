@@ -29,7 +29,7 @@ parser.add_argument('--id_file', type=str, default='', help='filename of the ids
 parser.add_argument('--num_subsamples', type=int, default=100,
                     help='number of samples to use in each distribution. note that non-neural models use all subsamples if -1')
 parser.add_argument('--permute_subsamples', dest='permute_subsamples', action='store_true')
-parser.add_argument('--normalizer', type=str, help='name of the normalizer')
+parser.add_argument('--normalizer', type=str, help='name of the normalizer', default='all')
 
 # Neural network hyperparameters
 parser.add_argument('--batch_size', type=int, default=64)
@@ -94,7 +94,7 @@ if __name__ == "__main__":
     print("Missing inputs in test: ", test_data.missing_inputs)
     if args.model in ['KNNDiv', 'DistReg', 'KNN', 'RF', 'GBC', 'RR', 'baseline']:
         X_tr, y_tr = zip(*[train_data[i] for i in range(len(train_data))])
-        X_ts, y_ts = zip(*[train_data[i] for i in range(len(test_data))])
+        X_ts, y_ts = zip(*[test_data[i] for i in range(len(test_data))])
         X_tr = np.squeeze(np.array(list(X_tr)), axis=1)
         if len(args.outputs) > 1:
             raise NotImplemented("KNNDiv doesn't work for multi-outputs")
