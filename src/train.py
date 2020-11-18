@@ -1,7 +1,10 @@
+from argparse import ArgumentError
 import os
-import warnings 
+import warnings
+from itertools import combinations
 
 import wandb
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
@@ -9,9 +12,13 @@ import torch.nn as nn
 
 from scipy.stats import kurtosis, skew
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor, GradientBoostingClassifier, GradientBoostingRegressor
+from sklearn.linear_model import Ridge, LogisticRegression
+from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.svm import SVR, SVC
 from sklearn.metrics import mean_squared_error, accuracy_score
+from sklearn.inspection import plot_partial_dependence
 from skl_groups.divergences import KNNDivergenceEstimator
 
 from skl_groups.kernels import PairwisePicker, Symmetrize, RBFize, ProjectPSD
@@ -142,25 +149,89 @@ def train_distribution2distrbution(X_tr,  y_tr, X_ts, y_ts, name=''):
     return train_score, test_score
 
 
+# def get_moments(X):
+#     means = np.mean(X, axis=1)
+#     stds = np.std(X, axis=1)
+#     skews = skew(X, axis=1)
+#     kurtoses = kurtosis(X, axis=1)
+#     return np.concatenate([means, stds, skews, kurtoses], axis=1)
+
 def get_moments(X):
-    means = np.mean(X, axis=1)
-    stds = np.std(X, axis=1)
-    skews = skew(X, axis=1)
-    kurtoses = kurtosis(X, axis=1)
-    return np.concatenate([means, stds, skews, kurtoses], axis=1)
+    """ We assume X is not a numpy array since num_samples can be different per example """
+    means = [np.mean(samples, axis=0) for samples in X]
+    stds = [np.std(samples, axis=0) for samples in X]
+    skews = [skew(samples, axis=0) for samples in X]
+    kurtoses = [kurtosis(samples, axis=0) for samples in X]
+    covariances = np.array([np.cov(samples, rowvar=False)[0][1] for samples in X]).reshape(-1, 1)
+    print(means[0].shape, stds[0].shape, skews[0].shape, kurtoses[0].shape, covariances[0].shape)
+    print(len(means), len(stds), len(skews), len(kurtoses), len(covariances))
+    return np.concatenate([means, stds, skews, kurtoses, covariances], axis=1)
 
+def plot_feature_importance(model, feature_names, name):
+    feat_importances = pd.Series(model.feature_importances_, index=feature_names)
+    feat_importances.plot(kind='barh')
+    plt.savefig('feature_imp/' + name + '_feat_importance.png')
 
-def train_KNNMoments(X_tr,  y_tr, X_ts, y_ts, k=5, name=''):
+def baseline(y_tr, y_ts):
+    classification = isinstance(y_tr[0][0], str) or isinstance(y_tr[0][0], bool) or isinstance(y_tr[0][0], np.bool_)
+    if len(y_tr[0]) > 1:
+        raise NotImplemented("Baseline only ipmlemented for 1D outputs")
+    y_tr = y_tr.flatten()
+    y_ts = y_ts.flatten()
+    if classification:
+        majority_class = max(set(list(y_tr)), key=list(y_tr).count)
+        train_score = sum(y_tr==majority_class)/len(y_tr)
+        test_score = sum(y_ts==majority_class)/len(y_ts)
+    else:
+        mean = y_tr.mean()
+        train_score = mean_squared_error([mean] * len(y_tr), y_tr)
+        test_score = mean_squared_error([mean] * len(y_ts), y_ts)
+    return train_score, test_score
+
+def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN'):
     X_tr = get_moments(X_tr)
     X_ts = get_moments(X_ts)
     classification = isinstance(y_tr[0][0], str) or isinstance(y_tr[0][0], bool) or isinstance(y_tr[0][0], np.bool_)
-    if classification:
-        model = KNeighborsClassifier(n_neighbors=k)
+    if model=='KNN':
+        parameters = {'n_neighbors': [3, 5, 9]}
+        if classification:
+            model = KNeighborsClassifier
+        else:
+            model = KNeighborsRegressor
+    elif model=='RF':
+        parameters = {'n_estimators': [100, 200], 'min_samples_split': [2, 4, 8]}
+        if classification:
+            model = RandomForestClassifier
+        else:
+            model = RandomForestRegressor
+    elif model=='GBC':
+        parameters = {'n_estimators': [100, 200], 'learning_rate': [.001, .01, .1], 'min_samples_split': [2, 4, 8]}
+        if classification:
+            model = GradientBoostingClassifier
+        else:
+            model = GradientBoostingRegressor
+    elif model=='RR':
+        if classification:
+            parameters = {'C': [.001, .1, 1, 10, 100]}
+            model = LogisticRegression
+        else:
+            parameters = {'alpha': [.001, .1, 1, 10, 100]}
+            model = Ridge
     else:
-        model = KNeighborsRegressor(n_neighbors=k)
+        raise ArgumentError("Model not supported")
+    clf = GridSearchCV(model(), parameters)
+    clf.fit(X_tr, y_tr)
+    model = model(**clf.best_params_)
     model.fit(X_tr, y_tr)
     preds = model.predict(X_ts)
     pd.DataFrame.from_dict({'preds': preds.flatten(), 'labels': y_ts.flatten()}).to_csv(name + '.csv')
+    feature_names = ['mean0', 'mean1', 'std0', 'std1', 'skew0', 'skew1', 'kurtosis0', 'kurtosis1', 'cov']
+    if isinstance(model, RandomForestClassifier) or isinstance(model, RandomForestRegressor):
+        plot_feature_importance(model, feature_names, name)
+    features = list(range(9)) + list(combinations(range(9), 2))
+    plot_partial_dependence(model, X_tr, features, feature_names, grid_resolution=20, percentiles=(0, 1))
+    plt.savefig('feature_imp/' + name + '_partial_dependence.png')
+    # np.savez(name + '.npz', X_tr=X_tr, y_tr=y_tr, X_ts=X_ts, y_ts=y_ts, preds=preds)
     if classification:
         train_score = accuracy_score(y_tr, model.predict(X_tr))
         test_score = accuracy_score(y_ts, preds)

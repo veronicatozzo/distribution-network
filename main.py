@@ -1,7 +1,7 @@
 import os
 import csv
 import sys
-sys.path.append("/misc/vlgscratch5/RanganathGroup/lily/miniconda3/envs/blood_matlab/lib/python3.7/site-packages/")
+# sys.path.append("/misc/vlgscratch5/RanganathGroup/lily/miniconda3/envs/blood_matlab/lib/python3.7/site-packages/")
 import argparse
 from datetime import datetime
 import wandb
@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from deep_sets.models import SmallDeepSetMax, SmallDeepSetMean, SmallDeepSetSum
 from set_transformer.models import SmallSetTransformer
 from src.dataset import FullSampleDataset
-from src.train import train_nn, train_KNNDivergence, train_distribution2distrbution, train_KNNMoments
+from src.train import train_nn, train_KNNDivergence, train_distribution2distrbution, train_sklearn_moments, baseline
 
 
 os.environ["WANDB_API_KEY"] = "ec22fec7bdd7579e0c42b8d29465922af4340148"  # "893130108141453e3e50e00010d3e3fced11c1e8"
@@ -74,7 +74,8 @@ if __name__ == "__main__":
     if args.id_file:
         id_file = args.id_file
     else:
-        path_to_id_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
+        # path_to_id_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
+        path_to_id_files = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/id_files"
         id_file = os.path.join(path_to_id_files, '_'.join([','.join(args.outputs), ','.join(args.inputs), str("{:%B-%d-%Y}.txt".format(datetime.now()))]))
 
     data_config = {
@@ -89,8 +90,9 @@ if __name__ == "__main__":
     # dates inputs outputs
     train_data = FullSampleDataset(test=False, **data_config)
     test_data = FullSampleDataset(test=True, **data_config)
-    print('created data')
-    if args.model in ['KNNDiv', 'DistReg', 'KNN']:
+    print("Missing inputs in train: ", train_data.missing_inputs)
+    print("Missing inputs in test: ", test_data.missing_inputs)
+    if args.model in ['KNNDiv', 'DistReg', 'KNN', 'RF', 'GBC', 'RR', 'baseline']:
         X_tr, y_tr = zip(*[train_data[i] for i in range(len(train_data))])
         X_ts, y_ts = zip(*[train_data[i] for i in range(len(test_data))])
         X_tr = np.squeeze(np.array(list(X_tr)), axis=1)
@@ -107,8 +109,10 @@ if __name__ == "__main__":
             y_tr = y_tr.flatten()
             y_ts = y_ts.flatten()
             train_score, test_score = train_distribution2distrbution(X_tr, y_tr, X_ts, y_ts, name=name)
-        elif args.model == 'KNN':
-            train_score, test_score = train_KNNMoments(X_tr, y_tr, X_ts, y_ts, args.k, name=name)
+        elif args.model in ['KNN', 'RF', 'GBC', 'RR']:
+            train_score, test_score = train_sklearn_moments(X_tr, y_tr, X_ts, y_ts, name=name, model=args.model)
+        elif args.model == 'baseline':
+            train_score, test_score = baseline(y_tr, y_ts)
         with open('baselines.csv', 'a') as f:
             writer = csv.writer(f)
             writer.writerow([','.join(args.inputs), ','.join(args.outputs), args.model, args.div, args.k, args.C, train_score, test_score])

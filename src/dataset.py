@@ -5,6 +5,7 @@ import torch
 import inspect
 import pandas as pd
 from torch.utils.data import Dataset
+from collections import Counter
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.base import TransformerMixin
@@ -19,9 +20,12 @@ from utils import  save_id_file, read_id_file
 # path_to_outputs = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/outputs"
 # path_to_files = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age"
 # path_to_id_list = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/id_lists"
-path_to_outputs = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/outputs"
-path_to_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age"
-path_to_id_list = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
+# path_to_outputs = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/outputs"
+# path_to_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age"
+# path_to_id_list = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
+path_to_outputs = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/outputs"
+path_to_files = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age"
+path_to_id_list = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/id_files"
 
 
 def select_one_patient_instance(ids_):
@@ -69,6 +73,7 @@ class FullSampleDataset(Dataset):
                         for i in range(table_o.shape[0])])
             ids_ = ids_.union(table_ids)
             if stratify_by_patient:
+                print('stratifying by patient')
                 ids_ = select_one_patient_instance(ids_)
             self.outputs.append(table_o)
         if (not os.path.exists(id_file)):
@@ -102,6 +107,7 @@ class FullSampleDataset(Dataset):
         self.permutate_subsamples =permute_subsamples
         self.normalizer = normalizer
         self.inputs = inputs
+        self.missing_inputs = Counter()
         
    
     def __getitem__(self, index):
@@ -136,7 +142,12 @@ class FullSampleDataset(Dataset):
                         xs.append(x[perm, :])           
                                 
             except:
-                xs.append(np.zeros((self.num_subsamples, 2)))
+                self.missing_inputs[input_type] += 1
+                if self.num_subsamples == -1:
+                    subsamples = 100
+                else:
+                    subsamples = self.num_subsamples
+                xs.append(np.zeros((subsamples, 2)))
 
         ys = []
         mrn = self.ids_[index].split('_')[0]
