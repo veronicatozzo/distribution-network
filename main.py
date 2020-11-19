@@ -75,7 +75,8 @@ if __name__ == "__main__":
         id_file = args.id_file
     else:
         # path_to_id_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
-        path_to_id_files = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/id_files"
+        #path_to_id_files = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/id_files"
+        path_to_id_files = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/id_lists"
         id_file = os.path.join(path_to_id_files, '_'.join([','.join(args.outputs), ','.join(args.inputs), str("{:%B-%d-%Y}.txt".format(datetime.now()))]))
 
     data_config = {
@@ -94,7 +95,7 @@ if __name__ == "__main__":
     print("Missing inputs in test: ", test_data.missing_inputs)
     if args.model in ['KNNDiv', 'DistReg', 'KNN', 'RF', 'GBC', 'RR', 'baseline']:
         X_tr, y_tr = zip(*[train_data[i] for i in range(len(train_data))])
-        X_ts, y_ts = zip(*[train_data[i] for i in range(len(test_data))])
+        X_ts, y_ts = zip(*[test_data[i] for i in range(len(test_data))])
         X_tr = np.squeeze(np.array(list(X_tr)), axis=1)
         if len(args.outputs) > 1:
             raise NotImplemented("KNNDiv doesn't work for multi-outputs")

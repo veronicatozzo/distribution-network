@@ -10,22 +10,22 @@ from collections import Counter
 from sklearn.preprocessing import StandardScaler
 from sklearn.base import TransformerMixin
 
-from preprocessing import SetStandardScaler
-from utils import shuffle_split_no_overlapping_patients, save_id_file
-from utils import  save_id_file, read_id_file
+from distribution_network.preprocessing import SetStandardScaler
+from distribution_network.utils import shuffle_split_no_overlapping_patients, save_id_file
+from distribution_network.utils import  save_id_file, read_id_file
 
 
 
 
-# path_to_outputs = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/outputs"
-# path_to_files = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age"
-# path_to_id_list = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/id_lists"
+path_to_outputs = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/outputs"
+path_to_files = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age"
+path_to_id_list = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/id_lists"
 # path_to_outputs = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/outputs"
 # path_to_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age"
 # path_to_id_list = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
-path_to_outputs = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/outputs"
-path_to_files = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age"
-path_to_id_list = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/id_files"
+# path_to_outputs = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/outputs"
+# path_to_files = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age"
+# path_to_id_list = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/id_files"
 
 
 def select_one_patient_instance(ids_):
@@ -65,27 +65,33 @@ class FullSampleDataset(Dataset):
                  normalizer='all', test=False, stratify_by_patient=True):
         
         ids_ = set()
+        ids_age = set()
         self.outputs = []
         self.test = test
         for o in outputs:
             table_o = pd.read_csv(path_to_outputs+"/"+o+".csv", index_col=0)
+            if 'age' in list(table_o.columns):
+                table_ids_age = set([str(table_o.iloc[i, 0])+'_'+table_o.iloc[i, 1].split(".")[0]+'_'+str(table_o['age'].iloc[i])
+                            for i in range(table_o.shape[0])])
             table_ids = set([str(table_o.iloc[i, 0])+'_'+table_o.iloc[i, 1].split(".")[0]
-                        for i in range(table_o.shape[0])])
+                            for i in range(table_o.shape[0])])
+            ids_age = ids_age.union(table_ids_age)
             ids_ = ids_.union(table_ids)
-            if stratify_by_patient:
-                print('stratifying by patient')
-                ids_ = select_one_patient_instance(ids_)
+            
             self.outputs.append(table_o)
         if (not os.path.exists(id_file)):
-            aux = pd.DataFrame([[i.split('_')[0], i.split('_')[1]]
-                                 for i in list(ids_)], columns = ['mrn', 'date'])
-             #split train and test using shuffle split that cares for overlap 
-            if str(o).lower() == 'age'  or str(o).lower() == 'age65':
+            
+            if len(ids_age) ==  len(ids_): # all outputs have age we can proceed to balance the selection
+                aux = pd.DataFrame([[i.split('_')[0], i.split('_')[1], int(i.split('_')[2])]
+                                 for i in list(ids_age)], columns = ['mrn', 'date', 'age'])
+                print(aux)
                 train, test = next(shuffle_split_no_overlapping_patients(aux, 
                                             train=0.8, n_splits=5, balance_age=True))
             else:
+                aux = pd.DataFrame([[i.split('_')[0], i.split('_')[1]]
+                                 for i in list(ids_)], columns = ['mrn', 'date'])
                 train, test = next(shuffle_split_no_overlapping_patients(aux, 
-                                            train=0.8, n_splits=5, balance_age=False))
+                                        train=0.8, n_splits=5, balance_age=False))
             self.test_ids_ = np.array(list(ids_))[test]
             self.train_ids_ =  np.array(list(ids_))[train]
             save_id_file(self.train_ids_, self.test_ids_, id_file)

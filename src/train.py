@@ -228,7 +228,7 @@ def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN'):
     feature_names = ['mean0', 'mean1', 'std0', 'std1', 'skew0', 'skew1', 'kurtosis0', 'kurtosis1', 'cov']
     if isinstance(model, RandomForestClassifier) or isinstance(model, RandomForestRegressor):
         plot_feature_importance(model, feature_names, name)
-    features = list(range(9)) + list(combinations(range(9), 2))
+    features = list(range(9)) #+ list(combinations(range(9), 2))
     plot_partial_dependence(model, X_tr, features, feature_names, grid_resolution=20, percentiles=(0, 1))
     plt.savefig('feature_imp/' + name + '_partial_dependence.png')
     # np.savez(name + '.npz', X_tr=X_tr, y_tr=y_tr, X_ts=X_ts, y_ts=y_ts, preds=preds)
