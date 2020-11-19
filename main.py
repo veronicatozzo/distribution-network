@@ -29,7 +29,7 @@ parser.add_argument('--id_file', type=str, default='', help='filename of the ids
 parser.add_argument('--num_subsamples', type=int, default=100,
                     help='number of samples to use in each distribution. note that non-neural models use all subsamples if -1')
 parser.add_argument('--permute_subsamples', dest='permute_subsamples', action='store_true')
-parser.add_argument('--normalizer', type=str, help='name of the normalizer')
+parser.add_argument('--normalizer', type=str, help='name of the normalizer', default='all')
 
 # Neural network hyperparameters
 parser.add_argument('--batch_size', type=int, default=64)
