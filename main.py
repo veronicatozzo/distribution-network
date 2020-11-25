@@ -89,6 +89,10 @@ if __name__ == "__main__":
     }
 
     # dates inputs outputs
+    if len(args.inputs) > 1 and len(args.num_subsamples) == -1:
+        raise NotImplemented("Cannot support multiple distributions with differential numbers of subsamples")
+    if len(args.inputs) > 1 and args.model in ['KNNDiv', 'DistReg']:
+        raise NotImplemented("Cannot support multiple distributions with KNNDiv and DistReg")
     train_data = FullSampleDataset(test=False, **data_config)
     test_data = FullSampleDataset(test=True, **data_config)
     print("Missing inputs in train: ", train_data.missing_inputs)
@@ -96,12 +100,12 @@ if __name__ == "__main__":
     if args.model in ['KNNDiv', 'DistReg', 'KNN', 'RF', 'GBC', 'RR', 'baseline']:
         X_tr, y_tr = zip(*[train_data[i] for i in range(len(train_data))])
         X_ts, y_ts = zip(*[test_data[i] for i in range(len(test_data))])
-        X_tr = np.squeeze(np.array(list(X_tr)), axis=1)
         if len(args.outputs) > 1:
             raise NotImplemented("KNNDiv doesn't work for multi-outputs")
-        y_tr = np.array(list(y_tr)) # .flatten()
-        X_ts = np.squeeze(np.array(list(X_ts)), axis=1)
-        y_ts = np.array(list(y_ts)) # .flatten()
+        X_tr = np.array(list(X_tr))
+        X_ts = np.array(list(X_ts))
+        y_tr = np.array(list(y_tr))
+        y_ts = np.array(list(y_ts))
         print(y_tr)
         print(X_tr.shape)
         if args.model == 'KNNDiv':

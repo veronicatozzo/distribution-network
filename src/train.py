@@ -156,16 +156,27 @@ def train_distribution2distrbution(X_tr,  y_tr, X_ts, y_ts, name=''):
 #     kurtoses = kurtosis(X, axis=1)
 #     return np.concatenate([means, stds, skews, kurtoses], axis=1)
 
+# def get_moments(X):
+#     """ We assume X is not a numpy array since num_samples can be different per example """
+#     means = [np.mean(samples, axis=0) for samples in X]
+#     stds = [np.std(samples, axis=0) for samples in X]
+#     skews = [skew(samples, axis=0) for samples in X]
+#     kurtoses = [kurtosis(samples, axis=0) for samples in X]
+#     covariances = np.array([np.cov(samples, rowvar=False)[0][1] for samples in X]).reshape(-1, 1)
+#     print(means[0].shape, stds[0].shape, skews[0].shape, kurtoses[0].shape, covariances[0].shape)
+#     print(len(means), len(stds), len(skews), len(kurtoses), len(covariances))
+#     return np.concatenate([means, stds, skews, kurtoses, covariances], axis=1)
+
 def get_moments(X):
-    """ We assume X is not a numpy array since num_samples can be different per example """
-    means = [np.mean(samples, axis=0) for samples in X]
-    stds = [np.std(samples, axis=0) for samples in X]
-    skews = [skew(samples, axis=0) for samples in X]
-    kurtoses = [kurtosis(samples, axis=0) for samples in X]
-    covariances = np.array([np.cov(samples, rowvar=False)[0][1] for samples in X]).reshape(-1, 1)
-    print(means[0].shape, stds[0].shape, skews[0].shape, kurtoses[0].shape, covariances[0].shape)
-    print(len(means), len(stds), len(skews), len(kurtoses), len(covariances))
-    return np.concatenate([means, stds, skews, kurtoses, covariances], axis=1)
+    """
+    X: [n_patients, n_dists, n_samples, 2]
+    """
+    means = np.mean(X, axis=2).reshape(X.shape[0], -1)
+    stds = np.std(X, axis=2).reshape(X.shape[0], -1)
+    skews = skew(X, axis=2).reshape(X.shape[0], -1)
+    kurtoses = kurtosis(X, axis=2).reshape(X.shape[0], -1)
+    covariances = np.array([np.cov(samples, rowvar=False)[0][1] for dist in X for samples in dist]).reshape(X.shape[0], -1)
+    return np.concatenate([means, stds, skews, kurtoses], axis=1)
 
 def plot_feature_importance(model, feature_names, name):
     feat_importances = pd.Series(model.feature_importances_, index=feature_names)
