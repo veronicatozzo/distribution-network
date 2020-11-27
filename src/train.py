@@ -19,6 +19,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.svm import SVR, SVC
 from sklearn.metrics import mean_squared_error, accuracy_score
 from sklearn.inspection import plot_partial_dependence
+from sklearn.impute import SimpleImputer
 from skl_groups.divergences import KNNDivergenceEstimator
 
 from skl_groups.kernels import PairwisePicker, Symmetrize, RBFize, ProjectPSD
@@ -176,7 +177,7 @@ def get_moments(X):
     skews = skew(X, axis=2).reshape(X.shape[0], -1)
     kurtoses = kurtosis(X, axis=2).reshape(X.shape[0], -1)
     covariances = np.array([np.cov(samples, rowvar=False)[0][1] for dist in X for samples in dist]).reshape(X.shape[0], -1)
-    return np.concatenate([means, stds, skews, kurtoses], axis=1)
+    return np.concatenate([means, stds, skews, kurtoses, covariances], axis=1)
 
 def plot_feature_importance(model, feature_names, name):
     feat_importances = pd.Series(model.feature_importances_, index=feature_names)
@@ -199,9 +200,14 @@ def baseline(y_tr, y_ts):
         test_score = mean_squared_error([mean] * len(y_ts), y_ts)
     return train_score, test_score
 
-def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN'):
+def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputation='zero'):
     X_tr = get_moments(X_tr)
     X_ts = get_moments(X_ts)
+    if imputation == "nan":
+        imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+        imp.fit(X_tr)
+        X_tr = imp.transform(X_tr)
+        X_ts = imp.transform(X_ts)
     classification = isinstance(y_tr[0][0], str) or isinstance(y_tr[0][0], bool) or isinstance(y_tr[0][0], np.bool_)
     if model=='KNN':
         parameters = {'n_neighbors': [3, 5, 9]}

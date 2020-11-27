@@ -62,7 +62,7 @@ class FullSampleDataset(Dataset):
     def __init__(self, inputs=[], outputs = [],
                  id_file=None, num_subsamples=100, 
                  permute_subsamples=True, 
-                 normalizer='all', test=False, stratify_by_patient=True):
+                 normalizer='all', test=False, stratify_by_patient=True, imputation='zero'):
         
         ids_ = set()
         ids_age = set()
@@ -118,6 +118,7 @@ class FullSampleDataset(Dataset):
         self.normalizer = normalizer
         self.inputs = inputs
         self.missing_inputs = Counter()
+        self.imputation = imputation
         
    
     def __getitem__(self, index):
@@ -157,7 +158,10 @@ class FullSampleDataset(Dataset):
                     subsamples = 100
                 else:
                     subsamples = self.num_subsamples
-                xs.append(np.zeros((subsamples, 2)))
+                if self.imputation == 'zero':
+                    xs.append(np.zeros((subsamples, 2)))
+                else:
+                    xs.append(np.array(np.nan * subsamples * 2).reshape(subsamples, 2))
 
         ys = []
         mrn = self.ids_[index].split('_')[0]

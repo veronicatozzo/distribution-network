@@ -30,6 +30,9 @@ parser.add_argument('--num_subsamples', type=int, default=100,
                     help='number of samples to use in each distribution. note that non-neural models use all subsamples if -1')
 parser.add_argument('--permute_subsamples', dest='permute_subsamples', action='store_true')
 parser.add_argument('--normalizer', type=str, help='name of the normalizer', default='all')
+parser.add_argument('--imputation', type=str, help='name of the normalizer', default='zero')
+
+parser.add_argument('--output_file', type=str, help='name of the normalizer', default='baselines.csv')
 
 # Neural network hyperparameters
 parser.add_argument('--batch_size', type=int, default=64)
@@ -86,10 +89,11 @@ if __name__ == "__main__":
         'num_subsamples': args.num_subsamples,
         'permute_subsamples': args.permute_subsamples,
         'normalizer': args.normalizer,
+        'imputation': args.imputation
     }
 
     # dates inputs outputs
-    if len(args.inputs) > 1 and len(args.num_subsamples) == -1:
+    if len(args.inputs) > 1 and args.num_subsamples == -1:
         raise NotImplemented("Cannot support multiple distributions with differential numbers of subsamples")
     if len(args.inputs) > 1 and args.model in ['KNNDiv', 'DistReg']:
         raise NotImplemented("Cannot support multiple distributions with KNNDiv and DistReg")
@@ -115,10 +119,10 @@ if __name__ == "__main__":
             y_ts = y_ts.flatten()
             train_score, test_score = train_distribution2distrbution(X_tr, y_tr, X_ts, y_ts, name=name)
         elif args.model in ['KNN', 'RF', 'GBC', 'RR']:
-            train_score, test_score = train_sklearn_moments(X_tr, y_tr, X_ts, y_ts, name=name, model=args.model)
+            train_score, test_score = train_sklearn_moments(X_tr, y_tr, X_ts, y_ts, name=name, model=args.model, imputation=args.imputation)
         elif args.model == 'baseline':
             train_score, test_score = baseline(y_tr, y_ts)
-        with open('baselines.csv', 'a') as f:
+        with open(args.output_file, 'a') as f:
             writer = csv.writer(f)
             writer.writerow([','.join(args.inputs), ','.join(args.outputs), args.model, args.div, args.k, args.C, train_score, test_score])
     else:
