@@ -12,7 +12,7 @@ files = [join(data_folder, f) for f in listdir(data_folder) if isfile(join(data_
 
 files
 
-batch_length = 50000
+batch_length = 100000
 i = 0
 b = 0
 while True:
