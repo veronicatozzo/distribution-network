@@ -256,3 +256,69 @@ def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputat
         train_score = mean_squared_error(y_tr, model.predict(X_tr))
         test_score = mean_squared_error(y_ts, model.predict(X_ts))
     return train_score, test_score
+
+
+def get_rdw(X):
+    """
+    X: [n_patients, n_dists, n_samples, 2]
+    """
+    means = np.mean(X, axis=2).reshape(X.shape[0], -1)
+    stds = np.std(X, axis=2).reshape(X.shape[0], -1)
+    return stds/means
+
+def train_sklearn_RDW(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputation='zero'):
+    X_tr = get_rdw(X_tr)
+    X_ts = get_rdw(X_ts)
+    if imputation == "nan":
+        imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+        imp.fit(X_tr)
+        X_tr = imp.transform(X_tr)
+        X_ts = imp.transform(X_ts)
+    classification = isinstance(y_tr[0][0], str) or isinstance(y_tr[0][0], bool) or isinstance(y_tr[0][0], np.bool_)
+    if model=='KNN':
+        parameters = {'n_neighbors': [3, 5, 9]}
+        if classification:
+            model = KNeighborsClassifier
+        else:
+            model = KNeighborsRegressor
+    elif model=='RF':
+        parameters = {'n_estimators': [100, 200], 'min_samples_split': [2, 4, 8]}
+        if classification:
+            model = RandomForestClassifier
+        else:
+            model = RandomForestRegressor
+    elif model=='GBC':
+        parameters = {'n_estimators': [100, 200], 'learning_rate': [.001, .01, .1], 'min_samples_split': [2, 4, 8]}
+        if classification:
+            model = GradientBoostingClassifier
+        else:
+            model = GradientBoostingRegressor
+    elif model=='RR':
+        if classification:
+            parameters = {'C': [.001, .1, 1, 10, 100]}
+            model = LogisticRegression
+        else:
+            parameters = {'alpha': [.001, .1, 1, 10, 100]}
+            model = Ridge
+    else:
+        raise ArgumentError("Model not supported")
+    clf = GridSearchCV(model(), parameters)
+    clf.fit(X_tr, y_tr)
+    model = model(**clf.best_params_)
+    model.fit(X_tr, y_tr)
+    preds = model.predict(X_ts)
+    pd.DataFrame.from_dict({'preds': preds.flatten(), 'labels': y_ts.flatten()}).to_csv(name + '.csv')
+    feature_names = ['mean0', 'mean1', 'std0', 'std1', 'skew0', 'skew1', 'kurtosis0', 'kurtosis1', 'cov']
+    if isinstance(model, RandomForestClassifier) or isinstance(model, RandomForestRegressor):
+        plot_feature_importance(model, feature_names, name)
+    features = list(range(9)) #+ list(combinations(range(9), 2))
+    # plot_partial_dependence(model, X_tr, features, feature_names, grid_resolution=20, percentiles=(0, 1))
+    # plt.savefig('feature_imp/' + name + '_partial_dependence.png')
+    # np.savez(name + '.npz', X_tr=X_tr, y_tr=y_tr, X_ts=X_ts, y_ts=y_ts, preds=preds)
+    if classification:
+        train_score = accuracy_score(y_tr, model.predict(X_tr))
+        test_score = accuracy_score(y_ts, preds)
+    else:
+        train_score = mean_squared_error(y_tr, model.predict(X_tr))
+        test_score = mean_squared_error(y_ts, model.predict(X_ts))
+    return train_score, test_score

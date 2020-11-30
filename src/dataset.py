@@ -10,9 +10,9 @@ from collections import Counter
 from sklearn.preprocessing import StandardScaler
 from sklearn.base import TransformerMixin
 
-from preprocessing import SetStandardScaler
-from utils import shuffle_split_no_overlapping_patients, save_id_file
-from utils import  save_id_file, read_id_file
+from ..preprocessing import SetStandardScaler
+from ..utils import shuffle_split_no_overlapping_patients, save_id_file
+from ..utils import  save_id_file, read_id_file
 
 
 
