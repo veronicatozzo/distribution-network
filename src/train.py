@@ -202,8 +202,13 @@ def baseline(y_tr, y_ts):
         test_score = mean_squared_error([mean] * len(y_ts), y_ts)
     return train_score, test_score
 
-def get_missing_indicator(X, missing_value):
-    reduced_samples = (X == missing_value).all(axis=2)
+def get_missing_indicator(X, imputation):
+    if imputation == "zero":
+        reduced_samples = (X == 0).all(axis=2)
+    elif imputation == "nan":
+        reduced_samples = (np.isnan(X)).all(axis=2)
+    else:
+        raise ValueError("Bad imputation value: ", imputation)
     reduced_features = (reduced_samples == True).all(axis=2)
     print("X", X.shape)
     print("reduced_samples", reduced_samples.shape)
@@ -212,14 +217,8 @@ def get_missing_indicator(X, missing_value):
 
 def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputation='zero', missing_indicator=False):
     if missing_indicator:
-        if imputation == "zero":
-            missing_value = 0
-        elif imputation == "nan":
-            missing_value = np.nan
-        else:
-            raise ValueError("Bad imputation value: ", imputation)
-        X_tr_mis = get_missing_indicator(X_tr, missing_value)
-        X_ts_mis = get_missing_indicator(X_ts, missing_value)
+        X_tr_mis = get_missing_indicator(X_tr, imputation)
+        X_ts_mis = get_missing_indicator(X_ts, imputation)
     X_tr = get_moments(X_tr)
     X_ts = get_moments(X_ts)
     if imputation == "nan":
