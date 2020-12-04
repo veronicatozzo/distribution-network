@@ -2,6 +2,7 @@ from argparse import ArgumentError
 import os
 import warnings
 from itertools import combinations
+import joblib as jl
 
 import wandb
 import matplotlib.pyplot as plt
@@ -20,6 +21,7 @@ from sklearn.svm import SVR, SVC
 from sklearn.metrics import mean_squared_error, accuracy_score
 from sklearn.inspection import plot_partial_dependence
 from sklearn.impute import SimpleImputer
+
 from skl_groups.divergences import KNNDivergenceEstimator
 
 from skl_groups.kernels import PairwisePicker, Symmetrize, RBFize, ProjectPSD
@@ -200,7 +202,24 @@ def baseline(y_tr, y_ts):
         test_score = mean_squared_error([mean] * len(y_ts), y_ts)
     return train_score, test_score
 
-def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputation='zero'):
+def get_missing_indicator(X, missing_value):
+    reduced_samples = (X == missing_value).all(axis=2)
+    reduced_features = (reduced_samples == True).all(axis=2)
+    print("X", X.shape)
+    print("reduced_samples", reduced_samples.shape)
+    print("reduced_features", reduced_features.shape)
+    return reduced_features  # [batch, n_dist]
+
+def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputation='zero', missing_indicator=False):
+    if missing_indicator:
+        if imputation == "zero":
+            missing_value = 0
+        elif imputation == "nan":
+            missing_value = np.nan
+        else:
+            raise ValueError("Bad imputation value: ", imputation)
+        X_tr_mis = get_missing_indicator(X_tr, missing_value)
+        X_ts_mis = get_missing_indicator(X_ts, missing_value)
     X_tr = get_moments(X_tr)
     X_ts = get_moments(X_ts)
     if imputation == "nan":
@@ -208,6 +227,13 @@ def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputat
         imp.fit(X_tr)
         X_tr = imp.transform(X_tr)
         X_ts = imp.transform(X_ts)
+    if missing_indicator:
+        assert len(X_tr) == len(X_tr_mis)
+        assert len(X_ts) == len(X_ts_mis)
+        X_tr = np.hstack([X_tr, X_tr_mis])
+        X_ts = np.hstack([X_ts, X_ts_mis])
+        assert len(X_tr) == len(X_tr_mis)
+        assert len(X_ts) == len(X_ts_mis)
     classification = isinstance(y_tr[0][0], str) or isinstance(y_tr[0][0], bool) or isinstance(y_tr[0][0], np.bool_)
     if model=='KNN':
         parameters = {'n_neighbors': [3, 5, 9]}
@@ -248,7 +274,8 @@ def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputat
     features = list(range(9)) #+ list(combinations(range(9), 2))
     # plot_partial_dependence(model, X_tr, features, feature_names, grid_resolution=20, percentiles=(0, 1))
     # plt.savefig('feature_imp/' + name + '_partial_dependence.png')
-    # np.savez(name + '.npz', X_tr=X_tr, y_tr=y_tr, X_ts=X_ts, y_ts=y_ts, preds=preds)
+    jl.dump(model, f'model_{name}.jl')
+    np.savez(name + '.npz', X_tr=X_tr, y_tr=y_tr, X_ts=X_ts, y_ts=y_ts, preds=preds)
     if classification:
         train_score = accuracy_score(y_tr, model.predict(X_tr))
         test_score = accuracy_score(y_ts, preds)

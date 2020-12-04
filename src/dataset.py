@@ -10,9 +10,9 @@ from collections import Counter
 from sklearn.preprocessing import StandardScaler
 from sklearn.base import TransformerMixin
 
-from ..preprocessing import SetStandardScaler
-from ..utils import shuffle_split_no_overlapping_patients, save_id_file
-from ..utils import  save_id_file, read_id_file
+from preprocessing import SetStandardScaler
+from utils import shuffle_split_no_overlapping_patients, save_id_file
+from utils import  save_id_file, read_id_file
 
 
 
@@ -161,7 +161,7 @@ class FullSampleDataset(Dataset):
                 if self.imputation == 'zero':
                     xs.append(np.zeros((subsamples, 2)))
                 else:
-                    xs.append(np.array(np.nan * subsamples * 2).reshape(subsamples, 2))
+                    xs.append(np.array([np.nan] * subsamples * 2).reshape(subsamples, 2))
 
         ys = []
         mrn = self.ids_[index].split('_')[0]
