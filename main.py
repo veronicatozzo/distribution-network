@@ -127,7 +127,10 @@ if __name__ == "__main__":
             train_score, test_score = baseline(y_tr, y_ts)
         with open(args.output_file, 'a') as f:
             writer = csv.writer(f)
-            writer.writerow([','.join(args.inputs), ','.join(args.outputs), args.model, args.div, args.k, args.C, train_score, test_score])
+            if args.model in ['KNNDiv', 'DistReg']:
+                writer.writerow([','.join(args.inputs), ','.join(args.outputs), args.model, args.div, args.k, args.C, train_score, test_score])
+            else:
+                writer.writerow([','.join(args.inputs), ','.join(args.outputs), args.model, args.imputation, args.missing_indicator, args.normalizer, train_score, test_score])
     else:
         train_generator = DataLoader(train_data,
                                 batch_size=args.batch_size,
