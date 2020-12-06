@@ -31,6 +31,7 @@ parser.add_argument('--num_subsamples', type=int, default=100,
 parser.add_argument('--permute_subsamples', dest='permute_subsamples', action='store_true')
 parser.add_argument('--normalizer', type=str, help='name of the normalizer', default='all')
 parser.add_argument('--imputation', type=str, help='name of the normalizer', default='zero')
+parser.add_argument('--rdw', type=bool,  default=False)
 
 parser.add_argument('--output_file', type=str, help='name of the normalizer', default='baselines.csv')
 
@@ -119,7 +120,7 @@ if __name__ == "__main__":
             y_ts = y_ts.flatten()
             train_score, test_score = train_distribution2distrbution(X_tr, y_tr, X_ts, y_ts, name=name)
         elif args.model in ['KNN', 'RF', 'GBC', 'RR']:
-            train_score, test_score = train_sklearn_moments(X_tr, y_tr, X_ts, y_ts, name=name, model=args.model, imputation=args.imputation)
+            train_score, test_score = train_sklearn_moments(X_tr, y_tr, X_ts, y_ts, name=name, model=args.model, imputation=args.imputation, rdw=args.rdw)
         elif args.model == 'baseline':
             train_score, test_score = baseline(y_tr, y_ts)
         with open(args.output_file, 'a') as f:
