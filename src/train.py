@@ -5,7 +5,6 @@ from itertools import combinations
 import joblib as jl
 
 import wandb
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
@@ -22,9 +21,6 @@ from sklearn.metrics import mean_squared_error, accuracy_score
 from sklearn.inspection import plot_partial_dependence
 from sklearn.impute import SimpleImputer
 
-from skl_groups.divergences import KNNDivergenceEstimator
-
-from skl_groups.kernels import PairwisePicker, Symmetrize, RBFize, ProjectPSD
 
 
 def train_nn(model, name, optimizer, scheduler, train_generator, test_generator):
@@ -63,6 +59,11 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator)
 
 
 def train_KNNDivergence(divergence, X_tr,  y_tr, X_ts, y_ts, k=5, C=1, name=''):
+    from skl_groups.divergences import KNNDivergenceEstimator
+
+    from skl_groups.kernels import PairwisePicker, Symmetrize, RBFize, ProjectPSD
+
+
     """
     Parameters
     ----------
@@ -174,14 +175,15 @@ def get_moments(X):
     """
     X: [n_patients, n_dists, n_samples, 2]
     """
-    means = np.mean(X, axis=2).reshape(X.shape[0], -1)
-    stds = np.std(X, axis=2).reshape(X.shape[0], -1)
-    skews = skew(X, axis=2).reshape(X.shape[0], -1)
-    kurtoses = kurtosis(X, axis=2).reshape(X.shape[0], -1)
-    covariances = np.array([np.cov(samples, rowvar=False)[0][1] for dist in X for samples in dist]).reshape(X.shape[0], -1)
+    means = np.array([np.mean(x, axis=1) for x in X]).reshape(len(X), -1)
+    stds = np.array([np.std(x, axis=1) for x in X]).reshape(len(X), -1)
+    skews = np.array([skew(x, axis=1) for x in X]).reshape(len(X), -1)
+    kurtoses = np.array([kurtosis(x, axis=1) for x in X]).reshape(len(X), -1)
+    covariances = np.array([np.cov(samples, rowvar=False)[0][1] for dist in X for samples in dist]).reshape(len(X), -1)
     return np.concatenate([means, stds, skews, kurtoses, covariances], axis=1)
 
 def plot_feature_importance(model, feature_names, name):
+    import matplotlib.pyplot as plt
     feat_importances = pd.Series(model.feature_importances_, index=feature_names)
     feat_importances.plot(kind='barh')
     plt.savefig('feature_imp/' + name + '_feat_importance.png')
@@ -206,9 +208,11 @@ def get_rdw(X):
     """
     X: [n_patients, n_dists, n_samples, 2]
     """
-    means = np.array([np.mean(x[:, 0]) for x in X])
-    stds = np.array([np.std(x[:, 0]) for x in X])
-    return stds/means*100
+    means = np.array([np.mean(x[0][:, 0]) for x in X])
+    stds = np.array([np.std(x[0][:, 0]) for x in X])
+    rdws = stds/means*100
+    rdws[np.where(np.isnan(rdws))] = 0
+    return rdws.reshape(-1, 1)
 
 def get_missing_indicator(X, imputation):
     if imputation == "zero":
@@ -223,10 +227,13 @@ def get_missing_indicator(X, imputation):
     print("reduced_features", reduced_features.shape)
     return reduced_features  # [batch, n_dist]
 
-def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputation='zero', missing_indicator=False, rdw=False):
-    if rwd:
+def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputation='zero', missing_indicator=False, rdw='rdw'):
+    if rdw == 'rdw':
         X_tr = get_rdw(X_tr)
         X_ts = get_rdw(X_ts)
+    elif rdw == 'both':
+        X_tr = np.hstack((get_moments(X_tr), get_rdw(X_tr)))
+        X_ts = np.hstack((get_moments(X_ts), get_rdw(X_ts)))
     else:
         if missing_indicator:
             X_tr_mis = get_missing_indicator(X_tr, imputation)
@@ -234,10 +241,6 @@ def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputat
         X_tr = get_moments(X_tr)
         X_ts = get_moments(X_ts)
 
-    
-    else:
-        X_tr = get_moments(X_tr)
-        X_ts = get_moments(X_ts)
 
     if imputation == "nan":
         imp = SimpleImputer(missing_values=np.nan, strategy='mean')
@@ -286,9 +289,9 @@ def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputat
     preds = model.predict(X_ts)
     pd.DataFrame.from_dict({'preds': preds.flatten(), 'labels': y_ts.flatten()}).to_csv(name + '.csv')
     feature_names = ['mean0', 'mean1', 'std0', 'std1', 'skew0', 'skew1', 'kurtosis0', 'kurtosis1', 'cov']
-    if isinstance(model, RandomForestClassifier) or isinstance(model, RandomForestRegressor):
-        plot_feature_importance(model, feature_names, name)
-    features = list(range(9)) #+ list(combinations(range(9), 2))
+#     if isinstance(model, RandomForestClassifier) or isinstance(model, RandomForestRegressor):
+#         plot_feature_importance(model, feature_names, name)
+#     features = list(range(9)) #+ list(combinations(range(9), 2))
     # plot_partial_dependence(model, X_tr, features, feature_names, grid_resolution=20, percentiles=(0, 1))
     # plt.savefig('feature_imp/' + name + '_partial_dependence.png')
     jl.dump(model, f'model_{name}.jl')
