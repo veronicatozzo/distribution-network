@@ -202,8 +202,14 @@ def baseline(y_tr, y_ts):
         test_score = mean_squared_error([mean] * len(y_ts), y_ts)
     return train_score, test_score
 
-<<<<<<< HEAD
-=======
+def get_rdw(X):
+    """
+    X: [n_patients, n_dists, n_samples, 2]
+    """
+    means = np.array([np.mean(x[:, 0]) for x in X])
+    stds = np.array([np.std(x[:, 0]) for x in X])
+    return stds/means*100
+
 def get_missing_indicator(X, imputation):
     if imputation == "zero":
         reduced_samples = (X == 0).all(axis=2)
@@ -217,12 +223,22 @@ def get_missing_indicator(X, imputation):
     print("reduced_features", reduced_features.shape)
     return reduced_features  # [batch, n_dist]
 
-def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputation='zero', missing_indicator=False):
-    if missing_indicator:
-        X_tr_mis = get_missing_indicator(X_tr, imputation)
-        X_ts_mis = get_missing_indicator(X_ts, imputation)
-    X_tr = get_moments(X_tr)
-    X_ts = get_moments(X_ts)
+def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputation='zero', missing_indicator=False, rdw=False):
+    if rwd:
+        X_tr = get_rdw(X_tr)
+        X_ts = get_rdw(X_ts)
+    else:
+        if missing_indicator:
+            X_tr_mis = get_missing_indicator(X_tr, imputation)
+            X_ts_mis = get_missing_indicator(X_ts, imputation)
+        X_tr = get_moments(X_tr)
+        X_ts = get_moments(X_ts)
+
+    
+    else:
+        X_tr = get_moments(X_tr)
+        X_ts = get_moments(X_ts)
+
     if imputation == "nan":
         imp = SimpleImputer(missing_values=np.nan, strategy='mean')
         imp.fit(X_tr)
@@ -284,80 +300,4 @@ def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputat
         train_score = mean_squared_error(y_tr, model.predict(X_tr))
         test_score = mean_squared_error(y_ts, model.predict(X_ts))
     return train_score, test_score
-
->>>>>>> ee1ddd23f56f0fde1180142bd5da587183e0dc46
-
-def get_rdw(X):
-    """
-    X: [n_patients, n_dists, n_samples, 2]
-    """
-    means = np.array([np.mean(x[:, 0]) for x in X])
-    stds = np.array([np.std(x[:, 0]) for x in X])
-    return stds/means*100
-
-
-def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputation='zero', rdw=False):
-    if rwd:
-        X_tr = get_rdw(X_tr)
-        X_ts = get_rdw(X_ts)
-    else:
-        X_tr = get_moments(X_tr)
-        X_ts = get_moments(X_ts)
-    
-    # X_tr = get_rdw(X_tr).reshape(-1, 1)
-    # X_ts = get_rdw(X_ts).reshape(-1, 1)
-    if imputation == "nan":
-        imp = SimpleImputer(missing_values=np.nan, strategy='mean')
-        imp.fit(X_tr)
-        X_tr = imp.transform(X_tr)
-        X_ts = imp.transform(X_ts)
-    classification = isinstance(y_tr[0][0], str) or isinstance(y_tr[0][0], bool) or isinstance(y_tr[0][0], np.bool_)
-    if model=='KNN':
-        parameters = {'n_neighbors': [3, 5, 9]}
-        if classification:
-            model = KNeighborsClassifier
-        else:
-            model = KNeighborsRegressor
-    elif model=='RF':
-        parameters = {'n_estimators': [100, 200], 'min_samples_split': [2, 4, 8]}
-        if classification:
-            model = RandomForestClassifier
-        else:
-            model = RandomForestRegressor
-    elif model=='GBC':
-        parameters = {'n_estimators': [100, 200], 'learning_rate': [.001, .01, .1], 'min_samples_split': [2, 4, 8]}
-        if classification:
-            model = GradientBoostingClassifier
-        else:
-            model = GradientBoostingRegressor
-    elif model=='RR':
-        if classification:
-            parameters = {'C': [.001, .1, 1, 10, 100]}
-            model = LogisticRegression
-        else:
-            parameters = {'alpha': [.001, .1, 1, 10, 100]}
-            model = Ridge
-    else:
-        raise ArgumentError("Model not supported")
-    clf = GridSearchCV(model(), parameters)
-    clf.fit(X_tr, y_tr)
-    model = model(**clf.best_params_)
-    model.fit(X_tr, y_tr)
-    preds = model.predict(X_ts)
-    pd.DataFrame.from_dict({'preds': preds.flatten(), 'labels': y_ts.flatten()}).to_csv(name + '.csv')
-    feature_names = ['mean0', 'mean1', 'std0', 'std1', 'skew0', 'skew1', 'kurtosis0', 'kurtosis1', 'cov']
-    if isinstance(model, RandomForestClassifier) or isinstance(model, RandomForestRegressor):
-        plot_feature_importance(model, feature_names, name)
-    features = list(range(9)) #+ list(combinations(range(9), 2))
-    # plot_partial_dependence(model, X_tr, features, feature_names, grid_resolution=20, percentiles=(0, 1))
-    # plt.savefig('feature_imp/' + name + '_partial_dependence.png')
-    # np.savez(name + '.npz', X_tr=X_tr, y_tr=y_tr, X_ts=X_ts, y_ts=y_ts, preds=preds)
-    if classification:
-        train_score = accuracy_score(y_tr, model.predict(X_tr))
-        test_score = accuracy_score(y_ts, preds)
-    else:
-        train_score = mean_squared_error(y_tr, model.predict(X_tr))
-        test_score = mean_squared_error(y_ts, model.predict(X_ts))
-    return train_score, test_score
-
 
