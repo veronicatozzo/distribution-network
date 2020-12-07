@@ -2,6 +2,7 @@ from argparse import ArgumentError
 import os
 import warnings
 from itertools import combinations
+import joblib as jl
 
 import wandb
 import matplotlib.pyplot as plt
@@ -20,6 +21,7 @@ from sklearn.svm import SVR, SVC
 from sklearn.metrics import mean_squared_error, accuracy_score
 from sklearn.inspection import plot_partial_dependence
 from sklearn.impute import SimpleImputer
+
 from skl_groups.divergences import KNNDivergenceEstimator
 
 from skl_groups.kernels import PairwisePicker, Symmetrize, RBFize, ProjectPSD
@@ -200,6 +202,90 @@ def baseline(y_tr, y_ts):
         test_score = mean_squared_error([mean] * len(y_ts), y_ts)
     return train_score, test_score
 
+<<<<<<< HEAD
+=======
+def get_missing_indicator(X, imputation):
+    if imputation == "zero":
+        reduced_samples = (X == 0).all(axis=2)
+    elif imputation == "nan":
+        reduced_samples = (np.isnan(X)).all(axis=2)
+    else:
+        raise ValueError("Bad imputation value: ", imputation)
+    reduced_features = (reduced_samples == True).all(axis=2)
+    print("X", X.shape)
+    print("reduced_samples", reduced_samples.shape)
+    print("reduced_features", reduced_features.shape)
+    return reduced_features  # [batch, n_dist]
+
+def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputation='zero', missing_indicator=False):
+    if missing_indicator:
+        X_tr_mis = get_missing_indicator(X_tr, imputation)
+        X_ts_mis = get_missing_indicator(X_ts, imputation)
+    X_tr = get_moments(X_tr)
+    X_ts = get_moments(X_ts)
+    if imputation == "nan":
+        imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+        imp.fit(X_tr)
+        X_tr = imp.transform(X_tr)
+        X_ts = imp.transform(X_ts)
+    if missing_indicator:
+        assert len(X_tr) == len(X_tr_mis)
+        assert len(X_ts) == len(X_ts_mis)
+        X_tr = np.hstack([X_tr, X_tr_mis])
+        X_ts = np.hstack([X_ts, X_ts_mis])
+        assert len(X_tr) == len(X_tr_mis)
+        assert len(X_ts) == len(X_ts_mis)
+    classification = isinstance(y_tr[0][0], str) or isinstance(y_tr[0][0], bool) or isinstance(y_tr[0][0], np.bool_)
+    if model=='KNN':
+        parameters = {'n_neighbors': [3, 5, 9]}
+        if classification:
+            model = KNeighborsClassifier
+        else:
+            model = KNeighborsRegressor
+    elif model=='RF':
+        parameters = {'n_estimators': [100, 200], 'min_samples_split': [2, 4, 8]}
+        if classification:
+            model = RandomForestClassifier
+        else:
+            model = RandomForestRegressor
+    elif model=='GBC':
+        parameters = {'n_estimators': [100, 200], 'learning_rate': [.001, .01, .1], 'min_samples_split': [2, 4, 8]}
+        if classification:
+            model = GradientBoostingClassifier
+        else:
+            model = GradientBoostingRegressor
+    elif model=='RR':
+        if classification:
+            parameters = {'C': [.001, .1, 1, 10, 100]}
+            model = LogisticRegression
+        else:
+            parameters = {'alpha': [.001, .1, 1, 10, 100]}
+            model = Ridge
+    else:
+        raise ArgumentError("Model not supported")
+    clf = GridSearchCV(model(), parameters)
+    clf.fit(X_tr, y_tr)
+    model = model(**clf.best_params_)
+    model.fit(X_tr, y_tr)
+    preds = model.predict(X_ts)
+    pd.DataFrame.from_dict({'preds': preds.flatten(), 'labels': y_ts.flatten()}).to_csv(name + '.csv')
+    feature_names = ['mean0', 'mean1', 'std0', 'std1', 'skew0', 'skew1', 'kurtosis0', 'kurtosis1', 'cov']
+    if isinstance(model, RandomForestClassifier) or isinstance(model, RandomForestRegressor):
+        plot_feature_importance(model, feature_names, name)
+    features = list(range(9)) #+ list(combinations(range(9), 2))
+    # plot_partial_dependence(model, X_tr, features, feature_names, grid_resolution=20, percentiles=(0, 1))
+    # plt.savefig('feature_imp/' + name + '_partial_dependence.png')
+    jl.dump(model, f'model_{name}.jl')
+    np.savez(name + '.npz', X_tr=X_tr, y_tr=y_tr, X_ts=X_ts, y_ts=y_ts, preds=preds)
+    if classification:
+        train_score = accuracy_score(y_tr, model.predict(X_tr))
+        test_score = accuracy_score(y_ts, preds)
+    else:
+        train_score = mean_squared_error(y_tr, model.predict(X_tr))
+        test_score = mean_squared_error(y_ts, model.predict(X_ts))
+    return train_score, test_score
+
+>>>>>>> ee1ddd23f56f0fde1180142bd5da587183e0dc46
 
 def get_rdw(X):
     """

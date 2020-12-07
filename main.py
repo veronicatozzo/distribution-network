@@ -32,6 +32,8 @@ parser.add_argument('--permute_subsamples', dest='permute_subsamples', action='s
 parser.add_argument('--normalizer', type=str, help='name of the normalizer', default='all')
 parser.add_argument('--imputation', type=str, help='name of the normalizer', default='zero')
 parser.add_argument('--rdw', type=bool,  default=False)
+parser.add_argument('--missing_indicator', dest='missing_indicator', action='store_true', help='whether to add missing indicators for each dist')
+
 
 parser.add_argument('--output_file', type=str, help='name of the normalizer', default='baselines.csv')
 
@@ -120,12 +122,17 @@ if __name__ == "__main__":
             y_ts = y_ts.flatten()
             train_score, test_score = train_distribution2distrbution(X_tr, y_tr, X_ts, y_ts, name=name)
         elif args.model in ['KNN', 'RF', 'GBC', 'RR']:
-            train_score, test_score = train_sklearn_moments(X_tr, y_tr, X_ts, y_ts, name=name, model=args.model, imputation=args.imputation, rdw=args.rdw)
+            train_score, test_score = train_sklearn_moments(X_tr, y_tr, X_ts, y_ts, name=name, model=args.model, imputation=args.imputation, 
+            missing_indicator=args.missing_indicator,
+            rdw=args.rdw)
         elif args.model == 'baseline':
             train_score, test_score = baseline(y_tr, y_ts)
         with open(args.output_file, 'a') as f:
             writer = csv.writer(f)
-            writer.writerow([','.join(args.inputs), ','.join(args.outputs), args.model, args.div, args.k, args.C, train_score, test_score])
+            if args.model in ['KNNDiv', 'DistReg']:
+                writer.writerow([','.join(args.inputs), ','.join(args.outputs), args.model, args.div, args.k, args.C, train_score, test_score])
+            else:
+                writer.writerow([','.join(args.inputs), ','.join(args.outputs), args.model, args.imputation, args.missing_indicator, args.normalizer, train_score, test_score])
     else:
         train_generator = DataLoader(train_data,
                                 batch_size=args.batch_size,
