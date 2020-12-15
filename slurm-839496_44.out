@@ -1,0 +1,10 @@
+False
+Traceback (most recent call last):
+  File "main.py", line 108, in <module>
+    train_data = FullSampleDataset(test=False, **data_config)
+  File "/home/vt2114/distribution_network/src/dataset.py", line 96, in __init__
+    save_id_file(self.train_ids_, self.test_ids_, id_file)
+  File "/home/vt2114/distribution_network/utils.py", line 95, in save_id_file
+    with open(id_file, 'wb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: '../data_large/id_files/Hematocrit_rbc,retics,plt,basos,perox_December-15-2020.txt'
+srun: error: hpc1: task 0: Exited with exit code 1
