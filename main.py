@@ -100,8 +100,10 @@ if __name__ == "__main__":
         raise NotImplemented("Cannot support multiple distributions with differential numbers of subsamples")
     if len(args.inputs) > 1 and args.model in ['KNNDiv', 'DistReg']:
         raise NotImplemented("Cannot support multiple distributions with KNNDiv and DistReg")
-    train_data = FullSampleDataset(test=False, **data_config)
-    test_data = FullSampleDataset(test=True, **data_config)
+    # train_data = FullSampleDataset(test=False, **data_config)
+    # test_data = FullSampleDataset(test=True, **data_config)
+    train_data = FullLargeDataset(test=False, **data_config)
+    test_data = FullLargeDataset(test=True, **data_config)
     print("Missing inputs in train: ", train_data.missing_inputs)
     print("Missing inputs in test: ", test_data.missing_inputs)
     if args.model in ['KNNDiv', 'DistReg', 'KNN', 'RF', 'GBC', 'RR', 'baseline']:

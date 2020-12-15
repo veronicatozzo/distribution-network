@@ -255,6 +255,7 @@ class FullLargeDataset(Dataset):
             self._setstandardscaler = []
             for input_type in inputs:
                 ss = SetStandardScaler(stream=True)
+
                 ss.fit([get_file(self.outputs[0], i, input_type)
                         for i in self.train_ids_])
                 self._setstandardscaler.append(ss)
