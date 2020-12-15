@@ -31,7 +31,7 @@ parser.add_argument('--num_subsamples', type=int, default=100,
 parser.add_argument('--permute_subsamples', dest='permute_subsamples', action='store_true')
 parser.add_argument('--normalizer', type=str, help='name of the normalizer', default='all')
 parser.add_argument('--imputation', type=str, help='name of the normalizer', default='zero')
-parser.add_argument('--rdw', type=bool,  default=False)
+parser.add_argument('--rdw', type=str,  default='none')
 parser.add_argument('--missing_indicator', dest='missing_indicator', action='store_true', help='whether to add missing indicators for each dist')
 
 
@@ -80,8 +80,8 @@ if __name__ == "__main__":
     if args.id_file:
         id_file = args.id_file
     else:
-        # path_to_id_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
-        path_to_id_files = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/id_files"
+        path_to_id_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
+        #path_to_id_files = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/id_files"
         # path_to_id_files = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/id_lists"
         id_file = os.path.join(path_to_id_files, '_'.join([','.join(args.outputs), ','.join(args.inputs), str("{:%B-%d-%Y}.txt".format(datetime.now()))]))
 
@@ -100,8 +100,10 @@ if __name__ == "__main__":
         raise NotImplemented("Cannot support multiple distributions with differential numbers of subsamples")
     if len(args.inputs) > 1 and args.model in ['KNNDiv', 'DistReg']:
         raise NotImplemented("Cannot support multiple distributions with KNNDiv and DistReg")
-    train_data = FullSampleDataset(test=False, **data_config)
-    test_data = FullSampleDataset(test=True, **data_config)
+    # train_data = FullSampleDataset(test=False, **data_config)
+    # test_data = FullSampleDataset(test=True, **data_config)
+    train_data = FullLargeDataset(test=False, **data_config)
+    test_data = FullLargeDataset(test=True, **data_config)
     print("Missing inputs in train: ", train_data.missing_inputs)
     print("Missing inputs in test: ", test_data.missing_inputs)
     if args.model in ['KNNDiv', 'DistReg', 'KNN', 'RF', 'GBC', 'RR', 'baseline']:

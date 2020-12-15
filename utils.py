@@ -42,8 +42,12 @@ def shuffle_split_no_overlapping_patients(data, train=0.8, n_splits=5, balance_a
             allowed = list(ixs)
             if not len(ixs)==1:
                 for k, j in combinations(ixs, 2):
-                    diff = np.abs(datetime.datetime.strptime(data['date'].iloc[k], '%Y-%m-%d %H:%M:%S') - 
-                                  datetime.datetime.strptime( data['date'].iloc[j], '%Y-%m-%d %H:%M:%S'))
+                    try:
+                        diff = np.abs(datetime.datetime.strptime(data['date'].iloc[k], '%Y-%m-%d %H:%M:%S') - 
+                                      datetime.datetime.strptime( data['date'].iloc[j], '%Y-%m-%d %H:%M:%S'))
+                    except:
+                        diff = np.abs(datetime.datetime.strptime(data['date'].iloc[k], '%Y-%m-%d') - 
+                                      datetime.datetime.strptime( data['date'].iloc[j], '%Y-%m-%d'))
                     if diff.days <=180:
                         try:
                             allowed.remove(k)
