@@ -133,3 +133,6 @@ wandb/*
 
 
 notebooks/*
+
+#output files 
+*.out
