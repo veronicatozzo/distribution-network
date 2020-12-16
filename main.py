@@ -26,7 +26,7 @@ parser.add_argument('-m', '--model', type=str,
                     help='string name for model type')
 
 parser.add_argument('--id_file', type=str, default='', help='filename of the ids to use')
-parser.add_argument('--data_large', type=bool, default=False)
+parser.add_argument('--data_large', dest='data_large', action='store_true')
 parser.add_argument('--num_subsamples', type=int, default=100,
                     help='number of samples to use in each distribution. note that non-neural models use all subsamples if -1')
 parser.add_argument('--permute_subsamples', dest='permute_subsamples', action='store_true')
