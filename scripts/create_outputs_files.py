@@ -19,7 +19,7 @@ if __name__ == "__main__":
         t.columns = ['mrn','date','age','sex', 'RBC','RETICS','BASOS','PAROX','PLTS','MCV','MCH','PCV','MPC','HCT','WBC']
         splits = files[i].split('/')[-1].split('_')
         fold, subfold = splits[0], splits[1].split('.')[0]
-        t['folder'] = '/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/'+fold+'/'+subfold+'/'
+        t['folder'] = '/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/data/'+fold+'/'+subfold+'/'
         if isinstance(complete_table, list):
             complete_table = t
         else:
@@ -32,7 +32,6 @@ if __name__ == "__main__":
          #   break
         
     complete_table['file_id'] = complete_table.apply(lambda row : str(row['mrn'])+'_'+row['date'].split(' ')[0], axis = 1)
-
     complete_table['age'] = complete_table.apply(lambda row : ''.join([c for c in str(row['age']) if c.isdigit()]), axis=1)
 
     complete_table = complete_table[complete_table['age']!='']

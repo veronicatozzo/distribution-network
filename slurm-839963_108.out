@@ -1,0 +1,10 @@
+False
+Traceback (most recent call last):
+  File "main.py", line 108, in <module>
+    train_data = FullSampleDataset(test=False, **data_config)
+  File "/home/vt2114/distribution_network/src/dataset.py", line 98, in __init__
+    id_list_train, id_list_test = read_id_file(id_file)
+  File "/home/vt2114/distribution_network/utils.py", line 99, in read_id_file
+    with open(id_file, 'rb') as f:
+PermissionError: [Errno 13] Permission denied: '/misc/vlgscratch5/RanganathGroup/lily/blood_dist//data_large/id_files/WBC_binned_rbc,retics,plt,basos,perox_December-15-2020.txt'
+srun: error: reopen1: task 0: Exited with exit code 1

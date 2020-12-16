@@ -99,6 +99,7 @@ class SetStandardScaler(StandardScaler):
                     means.append(np.mean(x, axis=0))
                     stds.append(np.std(x, axis=0))
                 except:
+                    print('Problema qui')
                     continue
             self.mean_ = np.mean(means, axis=0)
             self.scale_ = np.mean(stds, axis=0)

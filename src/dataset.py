@@ -182,9 +182,17 @@ class FullSampleDataset(Dataset):
 
         
 def get_file(output, id_, input_):
-    return output[output['file_id']==id_]['folder'].iloc[0]+input_.upper()+'/'+id_+'_'+input_.upper()+'.npy'
-              
-        
+    if input_ == 'retics':
+        file = output[output['file_id']==id_]['folder'].iloc[0]+'RETIC/'+id_+'_RETICS.npy'
+    elif input_ == 'basos':
+        file = output[output['file_id']==id_]['folder'].iloc[0]+'BASOS/'+id_+'_BASOS_WBC.npy'
+    elif input_ == 'perox':
+        file = output[output['file_id']==id_]['folder'].iloc[0]+'PEROX/'+id_+'_PEROX_WBC.npy'
+    else:
+        file = output[output['file_id']==id_]['folder'].iloc[0]+input_.upper()+'/'+id_+'_'+input_.upper()+'.npy'
+    return file
+
+
 class FullLargeDataset(Dataset):
     """
         Params
@@ -209,21 +217,22 @@ class FullLargeDataset(Dataset):
                  permute_subsamples=True, 
                  normalizer='all', test=False, stratify_by_patient=True, imputation='zero'):
         path_to_outputs = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/outputs"
-        path_to_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large"
+        path_to_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/data"
         path_to_id_list = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/id_files"
        
         ids_ = set()
         ids_age = set()
         self.outputs = []
         self.test = test
-        for o in outputs:
+        for j, o in enumerate(outputs):
+            
             table_o = pd.read_csv(path_to_outputs+"/"+o+".csv", index_col=0)
             if 'age' in list(table_o.columns):
-                table_ids_age = set([str(table_o.iloc[i, 0])+'_'+table_o.iloc[i, 1].split(".")[0]+'_'+str(table_o['age'].iloc[i])
-                            for i in range(table_o.shape[0])])
-                ids_age = ids_age.union(table_ids_age)
-            table_ids = set(table_o.iloc[:, -2])
-            ids_ = ids_.union(table_ids)
+                table_ids_age = set(list(table_o.apply(lambda row : 
+                                                              str(row['mrn'])+'_'+row['date'].split(' ')[0]+'_'+str(row['age']), axis = 1)))
+                ids_age = ids_age.intersection(table_ids_age) if j != 0 else table_ids_age
+            table_ids = set(table_o['file_id'].values)
+            ids_ = ids_.intersection(table_ids)  if j != 0 else table_ids
             
             self.outputs.append(table_o)
         if (not os.path.exists(id_file)):
@@ -243,8 +252,8 @@ class FullLargeDataset(Dataset):
             save_id_file(self.train_ids_, self.test_ids_, id_file)
         else:
             id_list_train, id_list_test = read_id_file(id_file)
-            self.test_ids_ = id_list_test
-            self.train_ids_ =  id_list_train
+            self.test_ids_ = list(set(id_list_test).intersection(ids_))
+            self.train_ids_ =  list(set(id_list_train).intersection(ids_))
 
         if self.test:
             self.ids_ = self.test_ids_
@@ -255,6 +264,7 @@ class FullLargeDataset(Dataset):
             self._setstandardscaler = []
             for input_type in inputs:
                 ss = SetStandardScaler(stream=True)
+
                 ss.fit([get_file(self.outputs[0], i, input_type)
                         for i in self.train_ids_])
                 self._setstandardscaler.append(ss)
