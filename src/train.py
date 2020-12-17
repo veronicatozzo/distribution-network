@@ -247,6 +247,11 @@ def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputat
         imp.fit(X_tr)
         X_tr = imp.transform(X_tr)
         X_ts = imp.transform(X_ts)
+    elif imputation == "zero":
+        imp = SimpleImputer(missing_values=np.nan, strategy='constant', fill_value=0)
+        imp.fit(X_tr)
+        X_tr = imp.transform(X_tr)
+        X_ts = imp.transform(X_ts)
     if missing_indicator:
         assert len(X_tr) == len(X_tr_mis)
         assert len(X_ts) == len(X_ts_mis)
@@ -282,6 +287,25 @@ def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputat
             model = Ridge
     else:
         raise ArgumentError("Model not supported")
+        
+    #Double check there are no nans in input/output
+    if y_ts.dtype == '<U1':
+         ixs = np.where(np.logical_and(np.logical_not(np.all(np.isnan(X_tr), axis=1)), 
+                                       np.logical_not([i == "nan" for i in y_tr])))
+    else:
+        ixs = np.where(np.logical_and(np.logical_not(np.all(np.isnan(X_tr), axis=1)), np.logical_not(np.isnan(y_tr))))
+    X_tr = X_tr[ixs[0], :]
+    y_tr = y_tr[ixs[0]] 
+    if y_ts.dtype == '<U1':
+         ixs = np.where(np.logical_and(np.logical_not(np.all(np.isnan(X_ts), axis=1)), 
+                                       np.logical_not([i == "nan" for i in y_ts])))
+    else:
+        ixs = np.where(np.logical_and(np.logical_not(np.all(np.isnan(X_ts), axis=1)), np.logical_not(np.isnan(y_ts))))
+    X_ts = X_ts[ixs[0], :]
+    y_ts = y_ts[ixs[0]] 
+    assert len(X_tr) == len(y_tr)
+    assert len(X_ts) == len(y_ts)
+   
     clf = GridSearchCV(model(), parameters)
     clf.fit(X_tr, y_tr)
     model = model(**clf.best_params_)

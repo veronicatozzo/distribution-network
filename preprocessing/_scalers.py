@@ -1,7 +1,9 @@
 
 from itertools import chain, combinations
+from joblib import Parallel, delayed
 import numbers
 import warnings
+import multiprocessing
 from itertools import combinations_with_replacement as combinations_w_r
 
 import numpy as np
@@ -66,11 +68,12 @@ class SetStandardScaler(StandardScaler):
 
     """ 
 
-    def __init__(self, copy=True, with_mean=True, with_std=True, stream=True):
+    def __init__(self, copy=True, with_mean=True, with_std=True, stream=True, n_cores=-1):
         self.copy=copy
         self.with_mean=with_mean
         self.with_std=with_std
         self.stream=stream
+        self.n_cores=n_cores
 
     def fit(self, X, y=None):
         """Compute the mean and std to be used for later scaling.
@@ -93,14 +96,36 @@ class SetStandardScaler(StandardScaler):
         if self.stream:
             stds = []
             means = []
-            for f in X:
+            
+           
+            def __load_and_calc(f):
                 try:
                     x = np.load(f)
-                    means.append(np.mean(x, axis=0))
-                    stds.append(np.std(x, axis=0))
+                    means = np.mean(x, axis=0)
+                    stds = np.std(x, axis=0)
                 except:
-                    print('Problema qui')
-                    continue
+                    means = np.array([np.nan]*2)
+                    stds = np.array([np.nan]*2)
+                return means, stds
+            
+            
+            num_cores = multiprocessing.cpu_count() if self.n_cores == -1 else self.n_cores
+
+            results = Parallel(n_jobs=num_cores)(delayed(__load_and_calc)(f) for f in X)
+            means, stds= zip(*results)
+            means = np.array(means)
+          
+            stds = np.array(stds)
+            means = means[np.where(np.logical_not(np.any(np.isnan(means), axis=1)))[0], :]
+            stds = stds[np.where(np.logical_not(np.any(np.isnan(stds), axis=1)))[0], :]
+           
+#             for f in X:
+#                 try:
+#                     x = np.load(f)
+#                     means.append(np.mean(x, axis=0))
+#                     stds.append(np.std(x, axis=0))
+#                 except:
+#                     continue
             self.mean_ = np.mean(means, axis=0)
             self.scale_ = np.mean(stds, axis=0)
             self.n_features_in = self.mean_.shape[0]

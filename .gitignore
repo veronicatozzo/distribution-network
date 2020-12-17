@@ -136,3 +136,7 @@ notebooks/*
 
 #output files 
 *.out
+*.csv
+*.txt
+*.npz
+*.jl
