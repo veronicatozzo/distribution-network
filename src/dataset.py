@@ -15,19 +15,6 @@ from utils import shuffle_split_no_overlapping_patients, save_id_file
 from utils import  save_id_file, read_id_file
 
 
-
-
-# path_to_outputs = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/outputs"
-# path_to_files = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age"
-# path_to_id_list = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/id_lists"
-path_to_outputs = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/outputs"
-path_to_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age"
-path_to_id_list = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
-# path_to_outputs = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/outputs"
-# path_to_files = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age"
-# path_to_id_list = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/id_files"
-
-
 def select_one_patient_instance(ids_):
     """ Note: Will not be deterministic due to the set """
     ids = set()
@@ -62,7 +49,10 @@ class FullSampleDataset(Dataset):
     def __init__(self, inputs=[], outputs = [],
                  id_file=None, num_subsamples=100, 
                  permute_subsamples=True, 
-                 normalizer='all', test=False, stratify_by_patient=True, imputation='zero'):
+                 normalizer='all', test=False, stratify_by_patient=True, imputation='zero',
+                 path_to_outputs="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/outputs",
+                 path_to_files="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age",
+                 path_to_id_list="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"):
         ids_ = set()
         ids_age = set()
         self.outputs = []
@@ -215,10 +205,10 @@ class FullLargeDataset(Dataset):
     def __init__(self, inputs=[], outputs = [],
                  id_file=None, num_subsamples=100, 
                  permute_subsamples=True, 
-                 normalizer='all', test=False, stratify_by_patient=True, imputation='zero'):
-        path_to_outputs = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/outputs"
-        path_to_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/data"
-        path_to_id_list = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/id_files"
+                 normalizer='all', test=False, stratify_by_patient=True, imputation='zero',
+                 path_to_outputs="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/outputs",
+                 path_to_files="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/data",
+                 path_to_id_list="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/id_files"):
        
         ids_ = set()
         ids_age = set()
