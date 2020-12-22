@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import SimpleScaler
+from sklearn.preprocessing import StandardScaler
 
 from src.train import train_sklearn_moments, baseline
 
@@ -93,35 +93,16 @@ if __name__ == "__main__":
     if args.id_file:
         id_file = args.id_file
     else:
-        if args.local_testing:
-            path_to_id_files = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/id_files"
-            # path_to_id_files = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/id_lists"
-        else:
-            path_to_id_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
+        path_to_id_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
         id_file = os.path.join(path_to_id_files, '_'.join([','.join(args.outputs), ','.join(args.inputs), str("{:%B-%d-%Y}.txt".format(datetime.now()))]))
 
     data_config = {
         'inputs': args.inputs,
         'outputs': args.outputs,
         'id_file': id_file,
-        'num_subsamples': args.num_subsamples,
-        'permute_subsamples': args.permute_subsamples,
         'normalizer': args.normalizer,
         'imputation': args.imputation
     }
-
-    if args.local_testing:
-        # path_to_outputs = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/outputs"
-        # path_to_files = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age"
-        # path_to_id_list = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/id_lists"
-        path_to_outputs = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/outputs"
-        path_to_files = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age"
-        path_to_id_list = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/id_files"
-        data_config.update(dict(
-            path_to_outputs=path_to_outputs,
-            path_to_files=path_to_files,
-            path_to_id_list=path_to_id_list
-        ))
 
         # TODO: maybe parallelize
         if not os.path.exists(id_file):
