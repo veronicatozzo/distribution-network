@@ -2,6 +2,8 @@ import os
 import glob
 from joblib import Parallel, delayed
 import multiprocessing
+import numpy as np
+from scipy.stats import kurtosis, skew
 
 path_to_data = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/data"
 
@@ -9,7 +11,7 @@ def write_moments(fname):
     dist = np.load(fname)
     moments = get_moments(dist)
     fname_out = fname.replace('/data/', '/moments/')
-    os.makedirs(fname_out, exist_ok = True)
+    os.makedirs(os.path.dirname(fname_out), exist_ok = True)
     np.save(fname_out, moments)
 
 def get_moments(dist):
@@ -18,8 +20,8 @@ def get_moments(dist):
     stds = np.std(dist, axis=0)
     skews = skew(dist, axis=0)
     kurtoses = kurtosis(dist, axis=0)
-    covariances = np.cov(samples, rowvar=False)[0][1]
-    return np.concatenate([means, stds, skews, kurtoses, covariances], axis=1)
+    covariances = np.cov(dist, rowvar=False)[0][1].reshape(-1)
+    return np.concatenate([means, stds, skews, kurtoses, covariances], axis=0)
 
 if __name__ == "__main__":
     data_files = glob.glob(path_to_data + '/**/*.npy', recursive=True)
