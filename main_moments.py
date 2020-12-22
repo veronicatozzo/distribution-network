@@ -7,6 +7,8 @@ import wandb
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import SimpleScaler
 
 from src.train import train_sklearn_moments, baseline
 
@@ -27,8 +29,7 @@ parser.add_argument('--output_file', type=str, help='name of the normalizer', de
 
 parser.add_argument('--name', type=str, help='name of the experiment in wandb',
                     default='')
-parser.add_argument('--save', dest='save', action='store_true', help='whether to save the model')
-parser.add_argument('--local_testing', dest='local_testing', action='store_true', help='flag to signify local testing')
+
 args = parser.parse_args()
 
 path_to_data = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/moments"
@@ -135,13 +136,23 @@ if __name__ == "__main__":
         id_list_train = list(set(id_list_train).intersection(table_ids))
         id_list_test = list(set(id_list_test).intersection(table_ids))
         print(len(id_list_train), len(id_list_test))
-        y_tr = table_o[table_o.file_id.isin(id_list_train)][output]
-        y_ts = table_o[table_o.file_id.isin(id_list_test)][output]
         if args.model == 'baseline':
+            y_tr = table_o[table_o.file_id.isin(id_list_train)][output]
+            y_ts = table_o[table_o.file_id.isin(id_list_test)][output]
             train_score, test_score = baseline(y_tr, y_ts)
         else:
-            X_tr = get_data(id_list_train, imputation, missing_indicator, rdw)
-            X_ts = get_data(id_list_test, imputation, missing_indicator, rdw)
+            X_tr = get_data(id_list_train, args.imputation, args.missing_indicator, args.rdw)
+            X_ts = get_data(id_list_test, args.imputation, args.missing_indicator, args.rdw)
+            if args.model == 'RR':
+                scaler = StandardScaler()
+                scaler.fit(X_tr)
+                X_tr = scaler.transform(X_tr)
+                X_ts = scaler.transform(X_ts)
+            if args.imputation == 'nan':
+                imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+                imp.fit(X_tr)
+                X_tr = imp.transform(X_tr)
+                X_ts = imp.transform(X_ts)
             y_tr = table_o[table_o.file_id.isin(id_list_train)][[output, 'file_id']]
             y_ts = table_o[table_o.file_id.isin(id_list_test)][[output, 'file_id']]
             # join so everything is in order
