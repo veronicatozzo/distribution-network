@@ -27,8 +27,6 @@ path_to_outputs = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/o
 if __name__ == "__main__":
     # NOTE: length of outputs is 1
     data = pd.read_csv(os.path.join(path_to_outputs, args.outputs + '.csv'), index_col=0)
-    data['Sex'] = 'M'
-    data['Age'] = 50
     data['Sex'] = data['Sex'] == 'M'
     data['Sex_nan'] = pd.isnull(data.Sex)
     data['Age_nan'] = pd.isnull(data.Age)
