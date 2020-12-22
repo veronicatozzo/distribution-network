@@ -51,6 +51,7 @@ if __name__ == "__main__":
     y_ts = test[args.outputs]
     print(y_tr.values.shape)
     classification = isinstance(y_tr.values[0], str) or isinstance(y_tr.values[0], bool) or isinstance(y_tr.values[0], np.bool_)
+    grid_search = False
     if args.model=='KNN':
         parameters = {'n_neighbors': [3, 5, 9]}
         if classification:
@@ -58,7 +59,8 @@ if __name__ == "__main__":
         else:
             model = KNeighborsRegressor
     elif args.model=='RF':
-        parameters = {'n_estimators': [100, 200], 'min_samples_split': [2, 4, 8]}
+        # parameters = {'n_estimators': [100, 200], 'min_samples_split': [2, 4, 8]}
+        parameters = {'n_estimators': [100], 'min_samples_split': [30]}
         if classification:
             model = RandomForestClassifier
         else:
@@ -71,16 +73,21 @@ if __name__ == "__main__":
             model = GradientBoostingRegressor
     elif args.model=='RR':
         if classification:
-            parameters = {'C': [.001, .1, 1, 10, 100]}
+            # parameters = {'C': [.001, .1, 1, 10, 100]}
+            parameters = {'penalty': ['none']}
             model = LogisticRegression
         else:
-            parameters = {'alpha': [.001, .1, 1, 10, 100]}
+            # parameters = {'alpha': [.001, .1, 1, 10, 100]}
+            parameters = {'alpha': [1]}
             model = Ridge
     else:
         raise ValueError("Model not supported")
-    clf = GridSearchCV(model(), parameters)
-    clf.fit(X_tr, y_tr)
-    model = model(**clf.best_params_)
+    if grid_search:
+        clf = GridSearchCV(model(), parameters)
+        clf.fit(X_tr, y_tr)
+        model = model(**clf.best_params_)
+    else:
+        model = model(**{k: v[0] for k, v in parameters.items()})
     model.fit(X_tr, y_tr)
     preds = model.predict(X_ts)
     name = '_'.join([args.model, ','.join([args.outputs]), ','.join(['demo'])])
