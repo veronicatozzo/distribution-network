@@ -5,16 +5,29 @@ import multiprocessing
 import numpy as np
 import pandas as pd
 from scipy.stats import kurtosis, skew
+import traceback
+# from concurrent.futures import ProcessPoolExecutor
 
 path_to_data = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/data"
 
 def write_moments(fname):
-    dist = np.load(fname)
-    moments = get_moments(dist)
-    fname_out = fname.replace('/data/', '/moments/').replace('.npy', '.csv')
-    os.makedirs(os.path.dirname(fname_out), exist_ok = True)
-    moments.to_csv(fname_out)
-    # np.save(fname_out, moments)
+    try:
+        fname_out = fname.replace('/data/', '/moments/').replace('.npy', '.csv')
+        if os.path.exists(fname_out):
+            continue
+        else:
+            dist = np.load(fname)
+            moments = get_moments(dist)
+            os.makedirs(os.path.dirname(fname_out), exist_ok = True)
+            moments.to_csv(fname_out)
+        # np.save(fname_out, moments)
+    except:
+        log_path = os.path.join(os.path.dirname(path_to_data), 'moments_err_log.txt'
+        err = traceback.format_exc()
+        with open(log_path, 'w') as f:
+            f.write(fname + '\n')
+            f.write(err)
+            f.write('\n\n')
 
 def get_rdw(X):
     """
