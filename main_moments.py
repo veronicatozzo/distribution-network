@@ -66,8 +66,12 @@ def get_data(id_list, imputation, missing_indicator, rdw):
                 fname = fname[0]
                 df = pd.read_csv(fname)
             df.columns = [cell_type + '_' + c for c in df.columns]
-            if not rdw:
-                df.drop('rdw', axis=1, inplace=True)
+            if rdw == 'rdw':
+                df = df[[cell_type + '_' + 'rdw']]
+            elif rdw == 'both':
+                pass
+            else:
+                df.drop(cell_type + '_' + 'rdw', axis=1, inplace=True)
             feats.append(df)
         all_feats = pd.concat(feats, axis=1)
         all_feats['file_id'] = id_name
