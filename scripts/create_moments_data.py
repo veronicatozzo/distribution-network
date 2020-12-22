@@ -20,8 +20,8 @@ def get_rdw(X):
     """
     X: [n_samples, 2]
     """
-    mean = np.mean(x[:, 0])
-    std = np.std(x[:, 0])
+    mean = np.mean(X[:, 0])
+    std = np.std(X[:, 0])
     rdw = std/mean * 100
     return rdw.reshape(-1)
 
@@ -31,18 +31,19 @@ def get_moments(dist):
     stds = np.std(dist, axis=0)
     skews = skew(dist, axis=0)
     kurtoses = kurtosis(dist, axis=0)
-    covariances = np.cov(dist, rowvar=False)[0][1].reshape(-1)
-    moments = [means, stds, skews, kurtoses, covariances]
+    covariance = np.cov(dist, rowvar=False)[0][1].reshape(-1)
+    moments = [means, stds, skews, kurtoses]
     for quantile in list(np.arange(.1, 1, .1)) + [.25, .5, .75]:
         moments.append(np.quantile(dist, quantile, axis=0))
     moments.append(get_rdw(dist))
-    df = pd.DataFrame(np.concatenate(moments, axis=0))
+    moments.append(covariance)
+    df = pd.DataFrame([np.concatenate(moments, axis=0)])
     cols = (
-        ['mean', 'std', 'skew', 'kurtosis', 'cov'] + 
+        ['mean', 'std', 'skew', 'kurtosis'] + 
         ['quantile' + str(round(q, 1)) for q in list(np.arange(.1, 1, .1))] + 
         ['quantile' + str(q) for q in [.25, .5, .75]])
     cols = [col + '_' + str(i) for col in cols for i in range(2)]
-    df.columns = cols + ['rdw']
+    df.columns = cols + ['rdw' + 'cov']
     return df
 
 if __name__ == "__main__":
