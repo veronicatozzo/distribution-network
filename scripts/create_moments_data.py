@@ -15,7 +15,7 @@ def write_moments(fname):
     try:
         fname_out = fname.replace('/data/', '/moments/').replace('.npy', '.csv')
         if os.path.exists(fname_out):
-            continue
+            return None
         else:
             start = time.time()
             dist = np.load(fname)
@@ -27,6 +27,7 @@ def write_moments(fname):
             time_path = os.path.join(os.path.dirname(path_to_data), 'moments_time_log.txt')
             with open(time_path, 'a') as f:
                 f.write(fname + ' ' + str(total_time) + '\n')
+            return None
         # np.save(fname_out, moments)
     except:
         log_path = os.path.join(os.path.dirname(path_to_data), 'moments_err_log.txt')
@@ -35,6 +36,7 @@ def write_moments(fname):
             f.write(fname + '\n')
             f.write(err)
             f.write('\n\n')
+        return None
 
 def get_rdw(X):
     """
