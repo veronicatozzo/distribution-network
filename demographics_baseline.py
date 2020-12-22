@@ -22,35 +22,37 @@ parser.add_argument('--output_file', type=str, help='name of the normalizer', de
 args = parser.parse_args()
 
 path_to_outputs = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/outputs"
-path_to_outputs = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/outputs"
+#path_to_outputs = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/outputs"
 
 if __name__ == "__main__":
     # NOTE: length of outputs is 1
     data = pd.read_csv(os.path.join(path_to_outputs, args.outputs + '.csv'), index_col=0)
-    data['Sex'] = 'M'
-    data['Age'] = 50
-    data['Sex'] = data['Sex'] == 'M'
+#     data['Sex'] = 'M'
+#     data['Age'] = 50
+    data['Sex'] = data['sex'] == 'M'
     data['Sex_nan'] = pd.isnull(data.Sex)
-    data['Age_nan'] = pd.isnull(data.Age)
+    data['Age_nan'] = pd.isnull(data.age)
     data['date'] = data['date'].apply(lambda s: s.split('.')[0])
     id_list_train, id_list_test = read_id_file(args.id_file)
     mrns_train = list(map(lambda s: s.split('_')[0], id_list_train))
     mrns_test = list(map(lambda s: s.split('_')[0], id_list_test))
     dates_train = list(map(lambda s: s.split('_')[1], id_list_train))
     dates_test = list(map(lambda s: s.split('_')[1], id_list_test))
+    data['date'] = list(map(lambda  s: s.split(' ')[0], data['date'].astype(str).values))
     train_mask = data['mrn'].astype(str).isin(mrns_train)&data['date'].astype(str).isin(dates_train)
+    print(np.any(train_mask))
     if args.imputation == 'zero':
-        data[['Age', 'Sex']].fillna(0, inplace=True)
+        data[['age', 'Sex']].fillna(0, inplace=True)
     elif args.imputation == 'nan':
-        data[['Age']].fillna(data[train_mask].Age.mean(), inplace=True)
+        data[['age']].fillna(data[train_mask].Age.mean(), inplace=True)
         data[['Sex']].fillna(data[train_mask].Sex.mode(), inplace=True)
     train = data[train_mask]
     test = data[data['mrn'].astype(str).isin(mrns_test)&data['date'].astype(str).isin(dates_test)]
     print(train.shape)
-    X_tr = train[['Age', 'Sex', 'Age_nan', 'Sex_nan']]
-    y_tr = train[args.outputs]
-    X_ts = test[['Age', 'Sex', 'Age_nan', 'Sex_nan']]
-    y_ts = test[args.outputs]
+    X_tr = train[['age', 'Sex', 'Age_nan', 'Sex_nan']]
+    y_tr = train.iloc[:, -1]
+    X_ts = test[['age', 'Sex', 'Age_nan', 'Sex_nan']]
+    y_ts = test.iloc[:, -1]
     print(y_tr.values.shape)
     classification = isinstance(y_tr.values[0], str) or isinstance(y_tr.values[0], bool) or isinstance(y_tr.values[0], np.bool_)
     if args.model=='KNN':
