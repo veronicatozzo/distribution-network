@@ -11,7 +11,7 @@ path_to_data = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/data
 def write_moments(fname):
     dist = np.load(fname)
     moments = get_moments(dist)
-    fname_out = fname.replace('/data/', '/moments/')
+    fname_out = fname.replace('/data/', '/moments/').replace('.npy', '.csv')
     os.makedirs(os.path.dirname(fname_out), exist_ok = True)
     moments.to_csv(fname_out)
     # np.save(fname_out, moments)
@@ -43,7 +43,7 @@ def get_moments(dist):
         ['quantile' + str(round(q, 1)) for q in list(np.arange(.1, 1, .1))] + 
         ['quantile' + str(q) for q in [.25, .5, .75]])
     cols = [col + '_' + str(i) for col in cols for i in range(2)]
-    df.columns = cols + ['rdw' + 'cov']
+    df.columns = cols + ['rdw', 'cov']
     return df
 
 if __name__ == "__main__":
