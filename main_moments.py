@@ -51,9 +51,7 @@ def get_data(id_list, imputation, missing_indicator, rdw):
         for cell_type in cell_types:
             path = os.path.join(path_to_data, '.'.join([year, month]), '-'.join([month, date]) + '*', cell_type, id_name + '_' + cell_type + '*.csv')
             fname = glob.glob(path)
-            print(fname)
             if len(fname) == 0:
-                print('doesnt exist')
                 is_nan[cell_type + '_isnan'] = [True]
                 cols = (
                     ['mean', 'std', 'skew', 'kurtosis'] + 
@@ -82,9 +80,6 @@ def get_data(id_list, imputation, missing_indicator, rdw):
                     pass
                 else:
                     df.drop(cell_type + '_' + 'rdw', axis=1, inplace=True)
-            print(cell_type,  df.shape)
-            if cell_type == 'RETIC':
-                print(df.columns)
             feats.append(df)
         all_feats = pd.concat(feats, axis=1)
         all_feats['file_id'] = id_name
@@ -92,8 +87,6 @@ def get_data(id_list, imputation, missing_indicator, rdw):
             dist_isnan = pd.DataFrame.from_dict(is_nan)
             all_feats = pd.concat([all_feats, dist_isnan], axis=1)
         all_data.append(all_feats)
-        print([el.shape for el in all_data])
-        print([set(el.columns) - set(all_data[0].columns) for el in all_data])
     return pd.concat(all_data, axis=0)
 
 
@@ -152,6 +145,8 @@ if __name__ == "__main__":
         X_tr = tr.drop([output, 'file_id'], axis=1)
         y_ts = ts[output]
         X_ts = ts.drop([output, 'file_id'], axis=1)
+        X_tr = X_tr.astype('float64')
+        X_ts = X_ts.astype('float64')
         if args.model == 'RR':
             scaler = StandardScaler()
             scaler.fit(X_tr)
@@ -162,9 +157,6 @@ if __name__ == "__main__":
             imp.fit(X_tr)
             X_tr = imp.transform(X_tr)
             X_ts = imp.transform(X_ts)
-        y_tr = table_o[table_o.file_id.isin(id_list_train)][[output, 'file_id']]
-        y_ts = table_o[table_o.file_id.isin(id_list_test)][[output, 'file_id']]
-        print(X_tr[0])
         train_score, test_score = train_sklearn_moments(X_tr, y_tr.values.reshape((-1, 1)), X_ts, y_ts.values.reshape((-1, 1)), name=name, model=args.model, id_file=id_file, featurized=True)
     with open(args.output_file, 'a') as f:
         writer = csv.writer(f)
