@@ -4,7 +4,7 @@ import warnings
 from itertools import combinations
 import joblib as jl
 
-import wandb
+#import wandb
 import numpy as np
 import pandas as pd
 import torch
@@ -227,7 +227,7 @@ def get_missing_indicator(X, imputation):
     print("reduced_features", reduced_features.shape)
     return reduced_features  # [batch, n_dist]
 
-def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputation='zero', missing_indicator=False, rdw='rdw'):
+def featurize_data(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputation='zero', missing_indicator=False, rdw='rdw'):
     if rdw == 'rdw':
         X_tr = get_rdw(X_tr)
         X_ts = get_rdw(X_ts)
@@ -259,6 +259,11 @@ def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputat
         X_ts = np.hstack([X_ts, X_ts_mis])
         assert len(X_tr) == len(X_tr_mis)
         assert len(X_ts) == len(X_ts_mis)
+    return X_tr, X_ts, y_tr, y_ts
+
+def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputation='zero', missing_indicator=False, rdw='rdw', featurized=False, id_file=''):
+    if not featurized:
+        X_tr, X_ts, y_tr, y_ts = featurize_data(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputation='zero', missing_indicator=False, rdw='rdw')
     classification = isinstance(y_tr[0][0], str) or isinstance(y_tr[0][0], bool) or isinstance(y_tr[0][0], np.bool_)
     if model=='KNN':
         parameters = {'n_neighbors': [3, 5, 9]}
@@ -267,7 +272,9 @@ def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputat
         else:
             model = KNeighborsRegressor
     elif model=='RF':
-        parameters = {'n_estimators': [100, 200], 'min_samples_split': [2, 4, 8]}
+        #parameters = {'n_estimators': [100, 200], 'min_samples_split': [2, 4, 8]}
+        parameters = {'n_estimators': 100, 'min_samples_split': 30}
+        
         if classification:
             model = RandomForestClassifier
         else:
@@ -280,10 +287,12 @@ def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputat
             model = GradientBoostingRegressor
     elif model=='RR':
         if classification:
-            parameters = {'C': [.001, .1, 1, 10, 100]}
+            #parameters = {'C': [.001, .1, 1, 10, 100]}
+            parameters = {'C': 1e-30}
             model = LogisticRegression
         else:
-            parameters = {'alpha': [.001, .1, 1, 10, 100]}
+            #parameters = {'alpha': [.001, .1, 1, 10, 100]}
+            parameters = {'alpha': 1e-30}
             model = Ridge
     else:
         raise ArgumentError("Model not supported")
@@ -305,10 +314,13 @@ def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputat
     y_ts = y_ts[ixs[0]] 
     assert len(X_tr) == len(y_tr)
     assert len(X_ts) == len(y_ts)
+    if not os.path.exists(id_file + '_data.npz'):
+        np.savez(id_file + '_data.npz', X_tr=X_tr, y_tr=y_tr, X_ts=X_ts, y_ts=y_ts)
    
-    clf = GridSearchCV(model(), parameters)
-    clf.fit(X_tr, y_tr)
-    model = model(**clf.best_params_)
+    #clf = GridSearchCV(model(), parameters)
+    #clf.fit(X_tr, y_tr)
+    print(parameters)
+    model = model(**parameters)
     model.fit(X_tr, y_tr)
     preds = model.predict(X_ts)
     pd.DataFrame.from_dict({'preds': preds.flatten(), 'labels': y_ts.flatten()}).to_csv(name + '.csv')

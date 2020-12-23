@@ -64,7 +64,9 @@ def find_matching_distributions(data, output):
                                                          ''.join([c for c in str(row['age']) if c.isdigit()]), axis=1)
 
     final_output_table = final_output_table[final_output_table['age']!='']
-
+    final_output_table = final_output_table[final_output_table['age'].astype(int)<=100]
+    
+    
     table_ = final_output_table[['mrn', 'date', 'age', 'sex', 'RBC', 'RETICS', 
                                  'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id', output]].copy()
     table_ = table_[table_[output].notnull()]
@@ -75,6 +77,9 @@ def find_matching_distributions(data, output):
     if output.lower() == 'ferritin':
         table_ = table_[table_.iloc[:, -1]<=40]
         table_.to_csv(path+'Ferritin40.csv')
+        
+        table_ = table_[table_.iloc[:, -1]<=300]
+        table_.to_csv(path+'Ferritin300.csv')
         
         table_ = final_output_table[['mrn', 'date', 'age', 'sex', 'RBC', 'RETICS',
                                      'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id', 'Ferritin']].copy()
@@ -120,8 +125,8 @@ if __name__ == "__main__":
     complete_table['age'] = complete_table.apply(lambda row : ''.join([c for c in str(row['age']) if c.isdigit()]), axis=1)
 
     complete_table = complete_table[complete_table['age']!='']
-
-        # create outputs
+    complete_table = complete_table[complete_table['age'].astype(int)<=100]
+    # create outputs
 
     table_ = complete_table[['mrn', 'date', 'age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']].copy()
     table_.columns = ['mrn','date', 'Age', 'sex', 'RBC','RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']
@@ -129,31 +134,38 @@ if __name__ == "__main__":
     # Age
     path = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/outputs/"
     table_['age'] = table_['Age']
-    table_ = complete_table[complete_table['Age'].notnull()]
+    table_ = table_[table_['Age'].notnull()]
     aux = table_[['mrn', 'date','folder', 'file_id', 'age','sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Age']]
     aux.to_csv(path+'Age.csv')
     
-    path = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/outputs/"
-    table_['age'] = table_['Age']
-    table_ = complete_table[complete_table['Age'].notnull()]
-    aux = table_[['mrn', 'date','folder', 'file_id', 'age','sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Age']]
     aux['Age_binned'] = pd.cut(aux['Age'].values.astype(int), np.arange(0, 110, 10), right=False, labels=np.arange(0, 10))
     aux.to_csv(path+'Age_binned.csv')
+    
+    # Age thresholded 
+    table_ = complete_table[['mrn', 'date', 'age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']].copy()
+   # complete_table['file_id'] = complete_table.apply(lambda row : str(row['mrn'])+'_'+row['date'].split(' ')[0], axis = 1)
+    table_ = table_.astype({'age':int})
+    table_['Age65'] = table_['age']>=65
+    table_ = table_[table_['Age65'].notnull()]
+    aux = table_[['mrn', 'date',  'folder', 'file_id','age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Age65']]
+    aux.to_csv(path+'Age65.csv')
+
+
     
     # Sex
     table_ = complete_table[['mrn', 'date', 'age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']].copy()
     table_.columns = ['mrn','date', 'age', 'Sex', 'RBC','RETICS', 'BASOS', 'PAROX', 'PLTS',  'folder', 'file_id']
-    table_ = complete_table[complete_table['Sex'].notnull()]
+    table_ = table_[table_['Sex'].notnull()]
     aux = table_[['mrn', 'date',  'folder', 'file_id','age', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Sex']]
     aux.to_csv(path+'Sex.csv')
 
     
     # Age thresholded 
     table_ = complete_table[['mrn', 'date', 'age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']].copy()
-    complete_table['file_id'] = complete_table.apply(lambda row : str(row['mrn'])+'_'+row['date'].split(' ')[0], axis = 1)
+   # complete_table['file_id'] = complete_table.apply(lambda row : str(row['mrn'])+'_'+row['date'].split(' ')[0], axis = 1)
     table_ = table_.astype({'age':int})
     table_['Age65'] = table_['age']>=65
-    table_ = complete_table[complete_table['Age65'].notnull()]
+    table_ = table_[table_['Age65'].notnull()]
     aux = table_[['mrn', 'date',  'folder', 'file_id','age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Age65']]
     aux.to_csv(path+'Age65.csv')
 

@@ -13,20 +13,7 @@ from sklearn.base import TransformerMixin
 from preprocessing import SetStandardScaler
 from utils import shuffle_split_no_overlapping_patients, save_id_file
 from utils import  save_id_file, read_id_file
-
-
-
-
-# path_to_outputs = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/outputs"
-# path_to_files = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age"
-# path_to_id_list = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/id_lists"
-path_to_outputs = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/outputs"
-path_to_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age"
-path_to_id_list = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
-# path_to_outputs = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/outputs"
-# path_to_files = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age"
-# path_to_id_list = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/id_files"
-
+import time 
 
 def select_one_patient_instance(ids_):
     """ Note: Will not be deterministic due to the set """
@@ -60,9 +47,14 @@ class FullSampleDataset(Dataset):
             In case dataset_name is provided normalization is ignored. 
     """
     def __init__(self, inputs=[], outputs = [],
-                 id_file=None, num_subsamples=100, 
+                 id_file=None, 
+                 num_samples=50000, 
+                 num_subsamples=100, 
                  permute_subsamples=True, 
-                 normalizer='all', test=False, stratify_by_patient=True, imputation='zero'):
+                 normalizer='all', test=False, stratify_by_patient=True, imputation='zero',
+                 path_to_outputs="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/outputs",
+                 path_to_files="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age",
+                 path_to_id_list="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"):
         ids_ = set()
         ids_age = set()
         self.outputs = []
@@ -100,9 +92,9 @@ class FullSampleDataset(Dataset):
             self.train_ids_ =  list(set(id_list_train).intersection(ids_))
 
         if self.test:
-            self.ids_ = self.test_ids_
+            self.ids_ = self.test_ids_ if num_samples == -1 else np.random.choice(self.test_ids_, size=min(num_samples, len(self.test_ids_)), replace=False)
         else:
-            self.ids_ = self.train_ids_
+            self.ids_ = self.train_ids_ if num_samples == -1 else np.random.choice(self.train_ids_, size=min(num_samples, len(self.train_ids_)), replace=False)
         
         if normalizer == 'all':
             self._setstandardscaler = []
@@ -111,7 +103,8 @@ class FullSampleDataset(Dataset):
                 ss.fit([path_to_files+"/"+input_type+'/'+i+".npy" 
                         for i in self.train_ids_])
                 self._setstandardscaler.append(ss)
-
+        
+        self.num_samples = num_samples
         self.num_subsamples = num_subsamples
         self.permutate_subsamples =permute_subsamples
         self.normalizer = normalizer
@@ -213,17 +206,19 @@ class FullLargeDataset(Dataset):
             In case dataset_name is provided normalization is ignored. 
     """
     def __init__(self, inputs=[], outputs = [],
-                 id_file=None, num_subsamples=100, 
+                 id_file=None,
+                  num_samples=50000, num_subsamples=100, 
                  permute_subsamples=True, 
-                 normalizer='all', test=False, stratify_by_patient=True, imputation='zero'):
-        path_to_outputs = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/outputs"
-        path_to_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/data"
-        path_to_id_list = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/id_files"
+                 normalizer='all', test=False, stratify_by_patient=True, imputation='zero',
+                 path_to_outputs="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/outputs",
+                 path_to_files="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/data",
+                 path_to_id_list="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/id_files"):
        
         ids_ = set()
         ids_age = set()
         self.outputs = []
         self.test = test
+        time_ = time.time()
         for j, o in enumerate(outputs):
             
             table_o = pd.read_csv(path_to_outputs+"/"+o+".csv", index_col=0)#, nrows=2000)
@@ -231,10 +226,12 @@ class FullLargeDataset(Dataset):
                 table_ids_age = set(list(table_o.apply(lambda row : 
                                                               str(row['mrn'])+'_'+row['date'].split(' ')[0]+'_'+str(row['age']), axis = 1)))
                 ids_age = ids_age.intersection(table_ids_age) if j != 0 else table_ids_age
-            table_ids = set(table_o['file_id'].values)
+            table_ids = set(np.unique(table_o['file_id'].values).tolist())
             ids_ = ids_.intersection(table_ids)  if j != 0 else table_ids
             
             self.outputs.append(table_o)
+        print('Looked at all output files, time', time.time() - time_)
+        time_ = time.time()
         if (not os.path.exists(id_file)):
             
             if len(ids_age) ==  len(ids_): # all outputs have age we can proceed to balance the selection
@@ -254,12 +251,19 @@ class FullLargeDataset(Dataset):
             id_list_train, id_list_test = read_id_file(id_file)
             self.test_ids_ = list(set(id_list_test).intersection(ids_))
             self.train_ids_ =  list(set(id_list_train).intersection(ids_))
-
-        if self.test:
-            self.ids_ = self.test_ids_
-        else:
-            self.ids_ = self.train_ids_
         
+        print('Loaded id files, time:', time.time() - time_)
+        time_ = time.time()
+        if self.test:
+            self.ids_ = self.test_ids_ if num_samples == -1 else list(np.random.choice(self.test_ids_, size=min(num_samples, len(self.test_ids_)), replace=False))
+            print(len(self.ids_))
+        else:
+            print(len(self.train_ids_))
+            print(np.random.choice(self.train_ids_, size=min(num_samples, len(self.train_ids_)), replace=False).shape)
+            self.ids_ = self.train_ids_ if num_samples == -1 else list(np.random.choice(self.train_ids_, size=min(num_samples, len(self.train_ids_)), replace=False))
+            print(len(self.ids_))
+        print('Selected sub-samples, time:', time.time() - time_)
+        time_ = time.time()
         if normalizer == 'all':
             self._setstandardscaler = []
             for input_type in inputs:
@@ -268,7 +272,7 @@ class FullLargeDataset(Dataset):
                 ss.fit([get_file(self.outputs[0], i, input_type)
                         for i in self.train_ids_])
                 self._setstandardscaler.append(ss)
-
+        print('Passed pre-processing, time:', time.time() - time_)
         self.num_subsamples = num_subsamples
         self.permutate_subsamples =permute_subsamples
         self.normalizer = normalizer
@@ -280,6 +284,7 @@ class FullLargeDataset(Dataset):
     def __getitem__(self, index):
 
         xs = []
+        #time_ = time.time()
         for i, input_type in enumerate(self.inputs):
             try:
                 filename = get_file(self.outputs[0], self.ids_[index], input_type)
@@ -307,7 +312,7 @@ class FullLargeDataset(Dataset):
                         perm = np.random.choice(np.arange(x.shape[0]),
                                          self.num_subsamples, replace=True)
                         xs.append(x[perm, :])           
-                                
+                      
             except:
                 self.missing_inputs[input_type] += 1
                 if self.num_subsamples == -1:
@@ -318,7 +323,7 @@ class FullLargeDataset(Dataset):
                     xs.append(np.zeros((subsamples, 2)))
                 else:
                     xs.append(np.array([np.nan] * subsamples * 2).reshape(subsamples, 2))
-
+       # print(time.time() - time_)       
         ys = []
         for output in self.outputs:
             ys.append(output[output['file_id']==self.ids_[index]].iloc[0, -1])
@@ -329,7 +334,4 @@ class FullLargeDataset(Dataset):
         return np.array(xs), np.array(ys)
 
     def __len__(self):
-        if self.test:
-            return len(self.test_ids_)
-        else:
-            return len(self.train_ids_)
+        return len(self.ids_)

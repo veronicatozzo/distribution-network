@@ -22,7 +22,6 @@ parser.add_argument('--output_file', type=str, help='name of the normalizer', de
 args = parser.parse_args()
 
 path_to_outputs = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/outputs"
-#path_to_outputs = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/outputs"
 
 if __name__ == "__main__":
     # NOTE: length of outputs is 1
@@ -87,7 +86,8 @@ if __name__ == "__main__":
     model = model(**clf.best_params_)
     model.fit(X_tr, y_tr)
     preds = model.predict(X_ts)
-    name = '_'.join([args.model, ','.join(args.outputs), ','.join('demo')])
+    name = '_'.join([args.model, ','.join([args.outputs]), ','.join(['demo'])])
+    np.savez(name + '.npz', X_tr=X_tr, y_tr=y_tr, X_ts=X_ts, y_ts=y_ts, preds=preds)
     pd.DataFrame.from_dict({'preds': preds, 'labels': y_ts}).to_csv(name + '.csv')
     normalizer = 'all'
     missing_indicator = True

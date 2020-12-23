@@ -4,7 +4,7 @@ import sys
 # sys.path.append("/misc/vlgscratch5/RanganathGroup/lily/miniconda3/envs/blood_matlab/lib/python3.7/site-packages/")
 import argparse
 from datetime import datetime
-import wandb
+#import wandb
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
@@ -27,10 +27,12 @@ parser.add_argument('-m', '--model', type=str,
 
 parser.add_argument('--id_file', type=str, default='', help='filename of the ids to use')
 parser.add_argument('--data_large', dest='data_large', action='store_true')
+parser.add_argument('--num_samples', type=int, default=-1,
+                    help='number of samples to use in each distribution. note that non-neural models use all subsamples if -1')
 parser.add_argument('--num_subsamples', type=int, default=100,
                     help='number of samples to use in each distribution. note that non-neural models use all subsamples if -1')
 parser.add_argument('--permute_subsamples', dest='permute_subsamples', action='store_true')
-parser.add_argument('--normalizer', type=str, help='name of the normalizer', default='all')
+parser.add_argument('--normalizer', type=str, help='name of the normalizer', default='none')
 parser.add_argument('--imputation', type=str, help='name of the normalizer', default='zero')
 parser.add_argument('--rdw', type=str,  default='none')
 parser.add_argument('--missing_indicator', dest='missing_indicator', action='store_true', help='whether to add missing indicators for each dist')
@@ -53,6 +55,7 @@ parser.add_argument('--div', type=str, default='kl')
 parser.add_argument('--name', type=str, help='name of the experiment in wandb',
                     default='')
 parser.add_argument('--save', dest='save', action='store_true', help='whether to save the model')
+parser.add_argument('--local_testing', dest='local_testing', action='store_true', help='flag to signify local testing')
 args = parser.parse_args()
 
 model_dict = dict(
@@ -81,45 +84,75 @@ if __name__ == "__main__":
     if args.id_file:
         id_file = args.id_file
     else:
-        path_to_id_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
-        #path_to_id_files = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/id_files"
-        # path_to_id_files = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/id_lists"
+        if args.local_testing:
+            path_to_id_files = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/id_files"  # TODO comment
+            # path_to_id_files = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/id_lists"
+        else:
+            path_to_id_files = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/balanced_age/id_files"
         id_file = os.path.join(path_to_id_files, '_'.join([','.join(args.outputs), ','.join(args.inputs), str("{:%B-%d-%Y}.txt".format(datetime.now()))]))
 
     data_config = {
         'inputs': args.inputs,
         'outputs': args.outputs,
         'id_file': id_file,
+        'num_samples': args.num_samples,
         'num_subsamples': args.num_subsamples,
         'permute_subsamples': args.permute_subsamples,
         'normalizer': args.normalizer,
         'imputation': args.imputation
     }
 
+    if args.local_testing:
+        # path_to_outputs = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/outputs"
+        # path_to_files = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age"
+        # path_to_id_list = "/Users/vt908/Dropbox (Partners HealthCare)/Distribution-distribution regression/balanced_age/id_lists"
+        path_to_outputs = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/outputs"
+        path_to_files = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age"
+        path_to_id_list = "/Users/lilyzhang/Desktop/Dropbox/Distribution-distribution regression/balanced_age/id_files"
+        data_config.update(dict(
+            path_to_outputs=path_to_outputs,
+            path_to_files=path_to_files,
+            path_to_id_list=path_to_id_list
+        ))
+
     # dates inputs outputs
     if len(args.inputs) > 1 and args.num_subsamples == -1:
         raise NotImplemented("Cannot support multiple distributions with differential numbers of subsamples")
     if len(args.inputs) > 1 and args.model in ['KNNDiv', 'DistReg']:
         raise NotImplemented("Cannot support multiple distributions with KNNDiv and DistReg")
-    if args.data_large:
-        train_data = FullLargeDataset(test=False, **data_config)
-        test_data = FullLargeDataset(test=True, **data_config)
+
+    if args.data_large and os.path.exists(name + '_data.npz') and (
+        args.model in ['KNN', 'RF', 'GBC', 'RR', 'baseline']
+    ):
+        data = np.load(id_file + '_data.npz')
+        X_tr = data['X_tr']
+        X_ts = data['X_ts']
+        y_tr = data['y_tr']
+        y_tr = data['y_tr']
+        featurized = True
     else:
-        train_data = FullSampleDataset(test=False, **data_config)
-        test_data = FullSampleDataset(test=True, **data_config)
-    print("Missing inputs in train: ", train_data.missing_inputs)
-    print("Missing inputs in test: ", test_data.missing_inputs)
+        if args.data_large:
+            Dataset = FullLargeDataset
+        else:
+            Dataset = FullSampleDataset
+        train_data = Dataset(test=False, **data_config)
+        test_data = Dataset(test=True, **data_config)
+        print("Missing inputs in train: ", train_data.missing_inputs)
+        print("Missing inputs in test: ", test_data.missing_inputs)
+        if args.model in ['KNNDiv', 'DistReg', 'KNN', 'RF', 'GBC', 'RR', 'baseline']:
+            X_tr, y_tr = zip(*[train_data[i] for i in range(len(train_data))])
+            X_ts, y_ts = zip(*[test_data[i] for i in range(len(test_data))])
+            if len(args.outputs) > 1:
+                raise NotImplemented("KNNDiv doesn't work for multi-outputs")
+            X_tr = np.array(list(X_tr))
+            X_ts = np.array(list(X_ts))
+            y_tr = np.array(list(y_tr))
+            y_ts = np.array(list(y_ts))
+            print(y_tr)
+            print(X_tr.shape)
+            featurized = False
+
     if args.model in ['KNNDiv', 'DistReg', 'KNN', 'RF', 'GBC', 'RR', 'baseline']:
-        X_tr, y_tr = zip(*[train_data[i] for i in range(len(train_data))])
-        X_ts, y_ts = zip(*[test_data[i] for i in range(len(test_data))])
-        if len(args.outputs) > 1:
-            raise NotImplemented("KNNDiv doesn't work for multi-outputs")
-        X_tr = np.array(list(X_tr))
-        X_ts = np.array(list(X_ts))
-        y_tr = np.array(list(y_tr))
-        y_ts = np.array(list(y_ts))
-        print(y_tr)
-        print(X_tr.shape)
         if args.model == 'KNNDiv':
             train_score, test_score = train_KNNDivergence(args.div, X_tr, y_tr, X_ts, y_ts, args.k, args.C, name=name)
         elif args.model == 'DistReg':
@@ -129,7 +162,7 @@ if __name__ == "__main__":
         elif args.model in ['KNN', 'RF', 'GBC', 'RR']:
             train_score, test_score = train_sklearn_moments(X_tr, y_tr, X_ts, y_ts, name=name, model=args.model, imputation=args.imputation, 
             missing_indicator=args.missing_indicator,
-            rdw=args.rdw)
+            rdw=args.rdw, id_file=id_file, featurized=featurized)
         elif args.model == 'baseline':
             train_score, test_score = baseline(y_tr, y_ts)
         with open(args.output_file, 'a') as f:
