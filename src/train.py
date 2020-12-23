@@ -20,7 +20,7 @@ from sklearn.svm import SVR, SVC
 from sklearn.metrics import mean_squared_error, accuracy_score
 from sklearn.inspection import plot_partial_dependence
 from sklearn.impute import SimpleImputer
-
+from memory_profiler import profile
 
 
 def train_nn(model, name, optimizer, scheduler, train_generator, test_generator):
@@ -299,50 +299,63 @@ def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN',
         raise ArgumentError("Model not supported")
         
     #Double check there are no nans in input/output
-    if y_ts.dtype == '<U1':
-         ixs = np.where(np.logical_and(np.logical_not(np.all(np.isnan(X_tr), axis=1)), 
-                                       np.logical_not([i == "nan" for i in y_tr])))
-    else:
-        ixs = np.where(np.logical_and(np.logical_not(np.all(pd.isnull(X_tr), axis=1)), np.logical_not(pd.isnull(y_tr))))
+    maskx = np.all(pd.notnull(X_tr), axis=1)
+    # y is size (n, 1)
+    masky = [i != "nan" for i in y_tr.flatten()]
+
     print(X_tr.shape)
     print(y_tr.shape)
-    print(ixs)
-    X_tr = X_tr[ixs[0], :]
-    y_tr = y_tr[ixs[0]]
-    if y_ts.dtype == '<U1':
-         ixs = np.where(np.logical_and(np.logical_not(np.all(np.isnan(X_ts), axis=1)), 
-                                       np.logical_not([i == "nan" for i in y_ts])))
-    else:
-        ixs = np.where(np.logical_and(np.logical_not(np.all(pd.isnull(X_ts), axis=1)), np.logical_not(pd.isnull(y_ts))))
-    X_ts = X_ts[ixs[0], :]
-    y_ts = y_ts[ixs[0]] 
+    print(maskx, masky)
+    X_tr = X_tr[maskx & masky]
+    y_tr = y_tr[maskx & masky]
+    print(X_tr.shape)
+    print(y_tr.shape)
+    print(maskx, masky)
+    
+    maskx = np.all(pd.notnull(X_ts), axis=1)
+    masky = [i != "nan" for i in y_ts.flatten()]
+
+    print(X_ts.shape)
+    print(y_ts.shape)
+    X_ts = X_ts[maskx & masky]
+    y_ts = y_ts[maskx & masky]
+    print(X_ts.shape)
+    print(y_ts.shape)
+    print('removed nans')
     assert len(X_tr) == len(y_tr)
     assert len(X_ts) == len(y_ts)
     if not os.path.exists(id_file + '_data.npz'):
         np.savez(id_file + '_data.npz', X_tr=X_tr, y_tr=y_tr, X_ts=X_ts, y_ts=y_ts)
     
     if grid_search:
+        print('starting grid search')
         clf = GridSearchCV(model(), parameters)
         clf.fit(X_tr, y_tr)
         model = model(**clf.best_params_)
     else:
         model = model(**{k: v[0] for k, v in parameters.items()})
+    print('model instantiated')
     model.fit(X_tr, y_tr)
+    print('model fit')
     preds = model.predict(X_ts)
+    print('test preds')
     pd.DataFrame.from_dict({'preds': preds.flatten(), 'labels': y_ts.flatten()}).to_csv(name + '.csv')
-    feature_names = ['mean0', 'mean1', 'std0', 'std1', 'skew0', 'skew1', 'kurtosis0', 'kurtosis1', 'cov']
-#     if isinstance(model, RandomForestClassifier) or isinstance(model, RandomForestRegressor):
+    # feature_names = ['mean0', 'mean1', 'std0', 'std1', 'skew0', 'skew1', 'kurtosis0', 'kurtosis1', 'cov']
+    # if isinstance(model, RandomForestClassifier) or isinstance(model, RandomForestRegressor):
 #         plot_feature_importance(model, feature_names, name)
 #     features = list(range(9)) #+ list(combinations(range(9), 2))
     # plot_partial_dependence(model, X_tr, features, feature_names, grid_resolution=20, percentiles=(0, 1))
     # plt.savefig('feature_imp/' + name + '_partial_dependence.png')
     jl.dump(model, f'model_{name}.jl')
+    print('dumped model')
     np.savez(name + '.npz', X_tr=X_tr, y_tr=y_tr, X_ts=X_ts, y_ts=y_ts, preds=preds)
+    print('saved preds')
     if classification:
         train_score = accuracy_score(y_tr, model.predict(X_tr))
         test_score = accuracy_score(y_ts, preds)
     else:
         train_score = mean_squared_error(y_tr, model.predict(X_tr))
-        test_score = mean_squared_error(y_ts, model.predict(X_ts))
+        test_score = mean_squared_error(y_ts, preds)
+    print('calculated scores')
     return train_score, test_score
 
