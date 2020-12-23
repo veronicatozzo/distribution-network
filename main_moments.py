@@ -89,6 +89,39 @@ def get_data(id_list, imputation, missing_indicator, rdw):
         all_data.append(all_feats)
     return pd.concat(all_data, axis=0)
 
+def correct_splits(X_tr, X_ts, y_tr, y_ts):
+    y_tr.drop_duplicates('file_id', inplace=True)
+    y_ts.drop_duplicates('file_id', inplace=True)
+    # join so everything is in order
+    tr = X_tr.merge(y_tr, on='file_id', how='left')
+    ts = X_ts.merge(y_ts, on='file_id', how='left')
+    print(len(tr), len(X_tr), len(y_tr))
+    print(len(ts), len(X_ts), len(y_ts))
+    assert len(tr) == len(X_tr)
+    assert len(ts) == len(X_ts)
+    y_tr = tr[output]
+    X_tr = tr.drop([output, 'file_id'], axis=1)
+    y_ts = ts[output]
+    X_ts = ts.drop([output, 'file_id'], axis=1)
+    X_tr = X_tr.astype('float64')
+    X_ts = X_ts.astype('float64')
+    X_tr = X_tr.values
+    X_ts = X_ts.values
+    return X_tr, X_ts, y_tr, y_ts
+
+def scale_data(X_tr, X_ts):
+    scaler = StandardScaler()
+    scaler.fit(X_tr)
+    X_tr = scaler.transform(X_tr)
+    X_ts = scaler.transform(X_ts)
+    return X_tr, X_ts
+
+def impute_data(X_tr, X_ts):
+    imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+    imp.fit(X_tr)
+    X_tr = imp.transform(X_tr)
+    X_ts = imp.transform(X_ts)
+    return X_tr, X_ts
 
 if __name__ == "__main__":
     if args.name:
@@ -134,33 +167,12 @@ if __name__ == "__main__":
         X_ts = get_data(id_list_test, args.imputation, args.missing_indicator, args.rdw)
         y_tr = table_o[table_o.file_id.isin(id_list_train)][[output, 'file_id']]
         y_ts = table_o[table_o.file_id.isin(id_list_test)][[output, 'file_id']]
-        y_tr.drop_duplicates('file_id', inplace=True)
-        y_ts.drop_duplicates('file_id', inplace=True)
-        # join so everything is in order
-        tr = X_tr.merge(y_tr, on='file_id', how='left')
-        ts = X_ts.merge(y_ts, on='file_id', how='left')
-        print(len(tr), len(X_tr), len(y_tr))
-        print(len(ts), len(X_ts), len(y_ts))
-        assert len(tr) == len(X_tr)
-        assert len(ts) == len(X_ts)
-        y_tr = tr[output]
-        X_tr = tr.drop([output, 'file_id'], axis=1)
-        y_ts = ts[output]
-        X_ts = ts.drop([output, 'file_id'], axis=1)
-        X_tr = X_tr.astype('float64')
-        X_ts = X_ts.astype('float64')
-        X_tr = X_tr.values
-        X_ts = X_ts.values
+        X_tr, X_ts, y_tr, y_ts = correct_splits(X_tr, X_ts, y_tr, y_ts)
         if args.model == 'RR':
-            scaler = StandardScaler()
-            scaler.fit(X_tr)
-            X_tr = scaler.transform(X_tr)
-            X_ts = scaler.transform(X_ts)
+            X_tr, X_ts = scale_data(X_tr, X_ts)
         if args.imputation == 'nan':
-            imp = SimpleImputer(missing_values=np.nan, strategy='mean')
-            imp.fit(X_tr)
-            X_tr = imp.transform(X_tr)
-            X_ts = imp.transform(X_ts)
+            X_tr, X_ts = impute_data(X_tr, X_ts)
+        print(X_tr[0])
         train_score, test_score = train_sklearn_moments(X_tr, y_tr.values.reshape((-1, 1)), X_ts, y_ts.values.reshape((-1, 1)), name=name, model=args.model, id_file=id_file, featurized=True)
     with open(args.output_file, 'a') as f:
         writer = csv.writer(f)

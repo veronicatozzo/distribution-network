@@ -307,7 +307,7 @@ def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN',
     print(y_tr.shape)
     print(ixs)
     X_tr = X_tr[ixs[0], :]
-    y_tr = y_tr[ixs[0]] 
+    y_tr = y_tr[ixs[0]]
     if y_ts.dtype == '<U1':
          ixs = np.where(np.logical_and(np.logical_not(np.all(np.isnan(X_ts), axis=1)), 
                                        np.logical_not([i == "nan" for i in y_ts])))
