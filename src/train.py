@@ -261,6 +261,7 @@ def featurize_data(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN', imputation='ze
         assert len(X_ts) == len(X_ts_mis)
     return X_tr, X_ts, y_tr, y_ts
 
+@profile
 def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN',
         imputation='zero', missing_indicator=False, rdw='rdw', featurized=False, id_file='', grid_search=False):
     if not featurized:

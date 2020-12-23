@@ -38,7 +38,7 @@ args = parser.parse_args()
 path_to_data = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/moments"
 path_to_outputs="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/outputs"
 cell_types = ['RBC', 'RETIC', 'PLT', 'BASOS', 'PEROX']
-
+@profile
 def get_data(id_list, imputation, missing_indicator, rdw):
     all_data = []
     is_nan = {}
@@ -88,7 +88,7 @@ def get_data(id_list, imputation, missing_indicator, rdw):
             all_feats = pd.concat([all_feats, dist_isnan], axis=1)
         all_data.append(all_feats)
     return pd.concat(all_data, axis=0)
-
+@profile
 def correct_splits(X_tr, X_ts, y_tr, y_ts):
     y_tr.drop_duplicates('file_id', inplace=True)
     y_ts.drop_duplicates('file_id', inplace=True)
@@ -108,14 +108,14 @@ def correct_splits(X_tr, X_ts, y_tr, y_ts):
     X_tr = X_tr.values
     X_ts = X_ts.values
     return X_tr, X_ts, y_tr, y_ts
-
+@profile
 def scale_data(X_tr, X_ts):
     scaler = StandardScaler()
     scaler.fit(X_tr)
     X_tr = scaler.transform(X_tr)
     X_ts = scaler.transform(X_ts)
     return X_tr, X_ts
-
+@profile
 def impute_data(X_tr, X_ts):
     imp = SimpleImputer(missing_values=np.nan, strategy='mean')
     imp.fit(X_tr)
