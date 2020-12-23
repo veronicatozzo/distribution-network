@@ -94,6 +94,8 @@ def get_row(id_name, imputation, missing_indicator, rdw):
 
 def get_data(id_list, imputation, missing_indicator, rdw):
     num_cores = multiprocessing.cpu_count()
+    # num_cores = 100
+    print(num_cores)
     func = partial(get_row, imputation=imputation, missing_indicator=missing_indicator, rdw=rdw)
     all_data = Parallel(n_jobs=num_cores)(delayed(func)(id_name) for id_name in id_list)
     return pd.concat(all_data, axis=0)
@@ -166,8 +168,10 @@ if __name__ == "__main__":
     id_list_train = list(set(id_list_train).intersection(table_ids))
     id_list_test = list(set(id_list_test).intersection(table_ids))
     print(len(id_list_train), len(id_list_test))
-    if output == 'Ferritin40':
+    if 'Ferritin' in output:
         output = 'Ferritin'
+    elif 'Hematocrit' in output:
+        output = 'Hematocrit'
     if args.model == 'baseline':
         y_tr = table_o[table_o.file_id.isin(id_list_train)][output]
         y_ts = table_o[table_o.file_id.isin(id_list_test)][output]
