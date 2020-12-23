@@ -123,10 +123,12 @@ if __name__ == "__main__":
     id_list_train = list(set(id_list_train).intersection(table_ids))
     id_list_test = list(set(id_list_test).intersection(table_ids))
     print(len(id_list_train), len(id_list_test))
+    if output == 'Ferritin40':
+        output = 'Ferritin'
     if args.model == 'baseline':
         y_tr = table_o[table_o.file_id.isin(id_list_train)][output]
         y_ts = table_o[table_o.file_id.isin(id_list_test)][output]
-        train_score, test_score = baseline(y_tr, y_ts)
+        train_score, test_score = baseline(y_tr.values.reshape((-1, 1)), y_ts.values.reshape((-1, 1)))
     else:
         X_tr = get_data(id_list_train, args.imputation, args.missing_indicator, args.rdw)
         X_ts = get_data(id_list_test, args.imputation, args.missing_indicator, args.rdw)
@@ -147,6 +149,8 @@ if __name__ == "__main__":
         X_ts = ts.drop([output, 'file_id'], axis=1)
         X_tr = X_tr.astype('float64')
         X_ts = X_ts.astype('float64')
+        X_tr = X_tr.values
+        X_ts = X_ts.values
         if args.model == 'RR':
             scaler = StandardScaler()
             scaler.fit(X_tr)

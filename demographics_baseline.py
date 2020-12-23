@@ -27,23 +27,31 @@ path_to_outputs = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/o
 if __name__ == "__main__":
     # NOTE: length of outputs is 1
     data = pd.read_csv(os.path.join(path_to_outputs, args.outputs + '.csv'), index_col=0)
-    data['Sex'] = data['Sex'] == 'M'
+    print(data.shape)
+    data['Sex'] = data['sex'] == 'M'
+    data['Age'] = data['age']
     data['Sex_nan'] = pd.isnull(data.Sex)
     data['Age_nan'] = pd.isnull(data.Age)
     data['date'] = data['date'].apply(lambda s: s.split('.')[0])
+    print(data.head())
     id_list_train, id_list_test = read_id_file(args.id_file)
-    mrns_train = list(map(lambda s: s.split('_')[0], id_list_train))
-    mrns_test = list(map(lambda s: s.split('_')[0], id_list_test))
-    dates_train = list(map(lambda s: s.split('_')[1], id_list_train))
-    dates_test = list(map(lambda s: s.split('_')[1], id_list_test))
-    train_mask = data['mrn'].astype(str).isin(mrns_train)&data['date'].astype(str).isin(dates_train)
+    # mrns_train = list(map(lambda s: s.split('_')[0], id_list_train))
+    # mrns_test = list(map(lambda s: s.split('_')[0], id_list_test))
+    # dates_train = list(map(lambda s: s.split('_')[1], id_list_train))
+    # dates_test = list(map(lambda s: s.split('_')[1], id_list_test))
+    # train_mask = data['mrn'].astype(str).isin(mrns_train)&data['date'].astype(str).isin(dates_train)
+    train_mask = data['file_id'].astype(str).isin(id_list_train)
     if args.imputation == 'zero':
         data[['Age', 'Sex']].fillna(0, inplace=True)
     elif args.imputation == 'nan':
         data[['Age']].fillna(data[train_mask].Age.mean(), inplace=True)
         data[['Sex']].fillna(data[train_mask].Sex.mode(), inplace=True)
     train = data[train_mask]
-    test = data[data['mrn'].astype(str).isin(mrns_test)&data['date'].astype(str).isin(dates_test)]
+    # test = data[data['mrn'].astype(str).isin(mrns_test)&data['date'].astype(str).isin(dates_test)]
+    test = data[data['file_id'].astype(str).isin(id_list_test)]
+    print(train_mask.head())
+    print('train', train.shape)
+    print('test', test.shape)
     print(train.shape)
     X_tr = train[['Age', 'Sex', 'Age_nan', 'Sex_nan']]
     y_tr = train[args.outputs]
