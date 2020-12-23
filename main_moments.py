@@ -58,7 +58,7 @@ def get_data(id_list, imputation, missing_indicator, rdw):
                 cols = (
                     ['mean', 'std', 'skew', 'kurtosis'] + 
                     ['quantile' + str(round(q, 1)) for q in list(np.arange(.1, 1, .1))] + 
-                    ['quantile' + str(q) for q in [.25, .5, .75]])
+                    ['quantile' + str(q) for q in [.25, .75]])
                 cols = [col + '_' + str(i) for col in cols for i in range(2)]
                 cols = cols + ['rdw', 'cov']
                 if imputation == 'zero':
@@ -68,12 +68,13 @@ def get_data(id_list, imputation, missing_indicator, rdw):
                 df = pd.DataFrame([[imputed_value] * len(cols)], columns=cols)
             else:
                 is_nan[cell_type + '_isnan'] = [False]
-                assert len(fname) == 1
+                # assert len(fname) == 1
                 fname = fname[0]
-                df = pd.read_csv(fname)
+                df = pd.read_csv(fname, index_col=0)
+                df.drop(['quantile0.5_0.1', 'quantile0.5_1.1'], axis=1, inplace=True)
             df.columns = [cell_type + '_' + c for c in df.columns]
             if cell_type != 'RBC':
-                f.drop(cell_type + '_' + 'rdw', axis=1, inplace=True)
+                df.drop(cell_type + '_' + 'rdw', axis=1, inplace=True)
             else:
                 if rdw == 'rdw':
                     df = df[[cell_type + '_' + 'rdw']]
@@ -81,6 +82,9 @@ def get_data(id_list, imputation, missing_indicator, rdw):
                     pass
                 else:
                     df.drop(cell_type + '_' + 'rdw', axis=1, inplace=True)
+            print(cell_type,  df.shape)
+            if cell_type == 'RETIC':
+                print(df.columns)
             feats.append(df)
         all_feats = pd.concat(feats, axis=1)
         all_feats['file_id'] = id_name
@@ -89,6 +93,7 @@ def get_data(id_list, imputation, missing_indicator, rdw):
             all_feats = pd.concat([all_feats, dist_isnan], axis=1)
         all_data.append(all_feats)
         print([el.shape for el in all_data])
+        print([set(el.columns) - set(all_data[0].columns) for el in all_data])
     return pd.concat(all_data, axis=0)
 
 
