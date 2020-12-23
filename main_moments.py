@@ -12,8 +12,11 @@ from torch.utils.data import DataLoader
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from utils import read_id_file
+from memory_profiler import profile, LogFile
 
 from src.train import train_sklearn_moments, baseline
+
+# sys.stdout = LogFile('memory_profile_log', reportIncrementFlag=False)
 
 parser = argparse.ArgumentParser(description='Results summary')
 parser.add_argument('-i', '--inputs', metavar='N', type=str, nargs='+',
@@ -172,7 +175,6 @@ if __name__ == "__main__":
             X_tr, X_ts = scale_data(X_tr, X_ts)
         if args.imputation == 'nan':
             X_tr, X_ts = impute_data(X_tr, X_ts)
-        print(X_tr[0])
         train_score, test_score = train_sklearn_moments(X_tr, y_tr.values.reshape((-1, 1)), X_ts, y_ts.values.reshape((-1, 1)), name=name, model=args.model, id_file=id_file, featurized=True)
     with open(args.output_file, 'a') as f:
         writer = csv.writer(f)
