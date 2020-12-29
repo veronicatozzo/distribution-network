@@ -221,7 +221,7 @@ class FullLargeDataset(Dataset):
         time_ = time.time()
         for j, o in enumerate(outputs):
             
-            table_o = pd.read_csv(path_to_outputs+"/"+o+".csv", index_col=0)#, nrows=2000)
+            table_o = pd.read_csv(path_to_outputs+"/"+o+".csv", index_col=0, nrows=2000)
             if 'age' in list(table_o.columns):
                 table_ids_age = set(list(table_o.apply(lambda row : 
                                                               str(row['mrn'])+'_'+row['date'].split(' ')[0]+'_'+str(row['age']), axis = 1)))

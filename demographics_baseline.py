@@ -26,27 +26,31 @@ path_to_outputs = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/o
 if __name__ == "__main__":
     # NOTE: length of outputs is 1
     data = pd.read_csv(os.path.join(path_to_outputs, args.outputs + '.csv'), index_col=0)
-#     data['Sex'] = 'M'
-#     data['Age'] = 50
+    print(data.shape)
     data['Sex'] = data['sex'] == 'M'
+    data['Age'] = data['age']
     data['Sex_nan'] = pd.isnull(data.Sex)
     data['Age_nan'] = pd.isnull(data.age)
     data['date'] = data['date'].apply(lambda s: s.split('.')[0])
+    print(data.head())
     id_list_train, id_list_test = read_id_file(args.id_file)
-    mrns_train = list(map(lambda s: s.split('_')[0], id_list_train))
-    mrns_test = list(map(lambda s: s.split('_')[0], id_list_test))
-    dates_train = list(map(lambda s: s.split('_')[1], id_list_train))
-    dates_test = list(map(lambda s: s.split('_')[1], id_list_test))
-    data['date'] = list(map(lambda  s: s.split(' ')[0], data['date'].astype(str).values))
-    train_mask = data['mrn'].astype(str).isin(mrns_train)&data['date'].astype(str).isin(dates_train)
-    print(np.any(train_mask))
+    # mrns_train = list(map(lambda s: s.split('_')[0], id_list_train))
+    # mrns_test = list(map(lambda s: s.split('_')[0], id_list_test))
+    # dates_train = list(map(lambda s: s.split('_')[1], id_list_train))
+    # dates_test = list(map(lambda s: s.split('_')[1], id_list_test))
+    # train_mask = data['mrn'].astype(str).isin(mrns_train)&data['date'].astype(str).isin(dates_train)
+    train_mask = data['file_id'].astype(str).isin(id_list_train)
     if args.imputation == 'zero':
         data[['age', 'Sex']].fillna(0, inplace=True)
     elif args.imputation == 'nan':
         data[['age']].fillna(data[train_mask].Age.mean(), inplace=True)
         data[['Sex']].fillna(data[train_mask].Sex.mode(), inplace=True)
     train = data[train_mask]
-    test = data[data['mrn'].astype(str).isin(mrns_test)&data['date'].astype(str).isin(dates_test)]
+    # test = data[data['mrn'].astype(str).isin(mrns_test)&data['date'].astype(str).isin(dates_test)]
+    test = data[data['file_id'].astype(str).isin(id_list_test)]
+    print(train_mask.head())
+    print('train', train.shape)
+    print('test', test.shape)
     print(train.shape)
     X_tr = train[['age', 'Sex', 'Age_nan', 'Sex_nan']]
     y_tr = train.iloc[:, -1]
@@ -54,6 +58,7 @@ if __name__ == "__main__":
     y_ts = test.iloc[:, -1]
     print(y_tr.values.shape)
     classification = isinstance(y_tr.values[0], str) or isinstance(y_tr.values[0], bool) or isinstance(y_tr.values[0], np.bool_)
+    grid_search = False
     if args.model=='KNN':
         parameters = {'n_neighbors': [3, 5, 9]}
         if classification:
@@ -61,7 +66,8 @@ if __name__ == "__main__":
         else:
             model = KNeighborsRegressor
     elif args.model=='RF':
-        parameters = {'n_estimators': [100, 200], 'min_samples_split': [2, 4, 8]}
+        # parameters = {'n_estimators': [100, 200], 'min_samples_split': [2, 4, 8]}
+        parameters = {'n_estimators': [100], 'min_samples_split': [30]}
         if classification:
             model = RandomForestClassifier
         else:
@@ -74,16 +80,21 @@ if __name__ == "__main__":
             model = GradientBoostingRegressor
     elif args.model=='RR':
         if classification:
-            parameters = {'C': [.001, .1, 1, 10, 100]}
+            # parameters = {'C': [.001, .1, 1, 10, 100]}
+            parameters = {'penalty': ['none']}
             model = LogisticRegression
         else:
-            parameters = {'alpha': [.001, .1, 1, 10, 100]}
+            # parameters = {'alpha': [.001, .1, 1, 10, 100]}
+            parameters = {'alpha': [1]}
             model = Ridge
     else:
         raise ValueError("Model not supported")
-    clf = GridSearchCV(model(), parameters)
-    clf.fit(X_tr, y_tr)
-    model = model(**clf.best_params_)
+    if grid_search:
+        clf = GridSearchCV(model(), parameters)
+        clf.fit(X_tr, y_tr)
+        model = model(**clf.best_params_)
+    else:
+        model = model(**{k: v[0] for k, v in parameters.items()})
     model.fit(X_tr, y_tr)
     preds = model.predict(X_ts)
     name = '_'.join([args.model, ','.join([args.outputs]), ','.join(['demo'])])
