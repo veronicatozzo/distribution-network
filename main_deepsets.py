@@ -39,6 +39,7 @@ parser.add_argument('--output_file', type=str, help='name of the normalizer', de
 
 
 parser.add_argument('--batch_size', type=int, default=64)
+parser.add_argument('--n_epochs', type=int, default=1000)
 parser.add_argument('--num_workers', type=int, default=4, help='number of cpu workers in the data loader')
 
 parser.add_argument('--n_enc_layers', type=int, default=2)
@@ -140,7 +141,8 @@ if __name__ == "__main__":
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
     model, train_score, test_score, train_losses, test_losses = train(model, name, optimizer, scheduler, train_generator,
                                                                       test_generator, 
-                                                                      classification=outputs_dict[args.outputs[0]]['type']=='classification')
+                                                                      classification=outputs_dict[args.outputs[0]]['type']=='classification',
+                                                                     n_epochs=args.n_epochs)
     
         
     print(train_score, test_score)

@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch
 
 from set_transformer.modules import SAB, PMA
 

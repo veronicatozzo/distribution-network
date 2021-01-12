@@ -48,7 +48,7 @@ class FullSampleDataset(Dataset):
     """
     def __init__(self, inputs=[], outputs = [],
                  id_file=None, 
-                 num_samples=50000, 
+                 num_samples=-1, 
                  num_subsamples=100, 
                  permute_subsamples=True, 
                  normalizer='all', test=False, stratify_by_patient=True, imputation='zero',

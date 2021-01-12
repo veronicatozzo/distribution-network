@@ -23,12 +23,11 @@ from sklearn.impute import SimpleImputer
 #from memory_profiler import profile
 
 #@profile
-def train_nn(model, name, optimizer, scheduler, train_generator, test_generator, classification=False):
+def train_nn(model, name, optimizer, scheduler, train_generator, test_generator, classification=False, n_epochs=1000):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     # by default, reduction = mean when multiple outputs
     #criterion = nn.MSELoss() 
-    print(classification)
     if classification:
         criterion = nn.BCELoss()
     else:
@@ -39,7 +38,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
     losses_tr = []
     losses_ts = []
     dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
-    for epoch in range(1000):
+    for epoch in range(n_epochs):
         aux = []
         for x, y in train_generator:
             x, y = x.type(dtype).to(device), y.type(dtype).to(device)
