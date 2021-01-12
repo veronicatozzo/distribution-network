@@ -52,10 +52,16 @@ if __name__ == "__main__":
     print('train', train.shape)
     print('test', test.shape)
     print(train.shape)
-    X_tr = train[['age', 'Sex', 'Age_nan', 'Sex_nan']]
-    y_tr = train.iloc[:, -1]
-    X_ts = test[['age', 'Sex', 'Age_nan', 'Sex_nan']]
-    y_ts = test.iloc[:, -1]
+    X_tr = train[['Age', 'Sex', 'Age_nan', 'Sex_nan']]
+    if 'Ferritin' in args.outputs:
+        output = 'Ferritin'
+    elif 'Hematocrit' in args.outputs:
+        output = 'Hematocrit'
+    else:
+        output = args.outputs
+    y_tr = train[output]
+    X_ts = test[['Age', 'Sex', 'Age_nan', 'Sex_nan']]
+    y_ts = test[output]
     print(y_tr.values.shape)
     classification = isinstance(y_tr.values[0], str) or isinstance(y_tr.values[0], bool) or isinstance(y_tr.values[0], np.bool_)
     grid_search = False

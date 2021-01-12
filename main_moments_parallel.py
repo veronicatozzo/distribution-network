@@ -44,7 +44,7 @@ args = parser.parse_args()
 path_to_data = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/moments"
 path_to_outputs="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/outputs"
 cell_types = ['RBC', 'RETIC', 'PLT', 'BASOS', 'PEROX']
-#@profile
+# @profile
 def get_row(id_name, imputation, missing_indicator, rdw):
     is_nan = {}
     ## remove timestamp (only for the bad Dec 15 id_files)
@@ -82,6 +82,8 @@ def get_row(id_name, imputation, missing_indicator, rdw):
                 df = df[[cell_type + '_' + 'rdw']]
             elif rdw == 'both':
                 pass
+            elif rdw == 'moments_no_quantiles':
+                df.drop([c for c in df.columns if 'quantile' in c], axis=1, inplace=True)
             else:
                 df.drop(cell_type + '_' + 'rdw', axis=1, inplace=True)
         feats.append(df)
@@ -94,11 +96,13 @@ def get_row(id_name, imputation, missing_indicator, rdw):
 
 def get_data(id_list, imputation, missing_indicator, rdw):
     num_cores = multiprocessing.cpu_count()
+    # num_cores = 100
+    print(num_cores)
     func = partial(get_row, imputation=imputation, missing_indicator=missing_indicator, rdw=rdw)
     all_data = Parallel(n_jobs=num_cores)(delayed(func)(id_name) for id_name in id_list)
     return pd.concat(all_data, axis=0)
 
-#@profile
+# @profile
 def correct_splits(X_tr, X_ts, y_tr, y_ts):
     y_tr.drop_duplicates('file_id', inplace=True)
     y_ts.drop_duplicates('file_id', inplace=True)
@@ -118,14 +122,14 @@ def correct_splits(X_tr, X_ts, y_tr, y_ts):
     X_tr = X_tr.values
     X_ts = X_ts.values
     return X_tr, X_ts, y_tr, y_ts
-#@profile
+# @profile
 def scale_data(X_tr, X_ts):
     scaler = StandardScaler()
     scaler.fit(X_tr)
     X_tr = scaler.transform(X_tr)
     X_ts = scaler.transform(X_ts)
     return X_tr, X_ts
-#@profile
+# @profile
 def impute_data(X_tr, X_ts):
     imp = SimpleImputer(missing_values=np.nan, strategy='mean')
     imp.fit(X_tr)
@@ -166,8 +170,10 @@ if __name__ == "__main__":
     id_list_train = list(set(id_list_train).intersection(table_ids))
     id_list_test = list(set(id_list_test).intersection(table_ids))
     print(len(id_list_train), len(id_list_test))
-    if output == 'Ferritin40':
+    if 'Ferritin' in output:
         output = 'Ferritin'
+    elif 'Hematocrit' in output:
+        output = 'Hematocrit'
     if args.model == 'baseline':
         y_tr = table_o[table_o.file_id.isin(id_list_train)][output]
         y_ts = table_o[table_o.file_id.isin(id_list_test)][output]
@@ -185,4 +191,4 @@ if __name__ == "__main__":
         train_score, test_score = train_sklearn_moments(X_tr, y_tr.values.reshape((-1, 1)), X_ts, y_ts.values.reshape((-1, 1)), name=name, model=args.model, id_file=id_file, featurized=True, grid_search=True)
     with open(args.output_file, 'a') as f:
         writer = csv.writer(f)
-        writer.writerow([','.join(args.inputs), ','.join(args.outputs), args.model, args.imputation, args.missing_indicator, args.normalizer, train_score, test_score])
+        writer.writerow([','.join(args.inputs), ','.join(args.outputs), args.model, args.imputation, args.missing_indicator, args.id_file, train_score, test_score])
