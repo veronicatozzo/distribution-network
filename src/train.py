@@ -30,7 +30,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
     #criterion = nn.MSELoss() 
     print(classification)
     if classification:
-        criterion = nn.LogSigmoid()
+        criterion = nn.BCELoss()
     else:
         criterion = nn.MSELoss() 
     step = 0
@@ -61,21 +61,11 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
         accuracy = []
         for x, y in test_generator:
             x, y = x.type(dtype).to(device), y.type(dtype).to(device)
-#             if classification:
-#                  #y = torch.max(y_, 1)[1]
-#                 y = torch.squeeze(y).type(torch.LongTensor)
-#                 print(y.size)
             loss = criterion(model(x), y)
-            if classification:
-                accuracy.append(accuracy_score(model(x).detach().cpu().numpy(), y.detach().cpu().numpy().astype(np.int8)))
             aux.append(loss.item())
             #wandb.log({f"{name} test loss per step": loss}, step=step)
         test_loss = np.mean(aux)
-        if classification:
-            print('Train loss: '+str(train_loss)+", test loss: "+str(test_loss)
-                  +'test accuracy: ' + np.mean(accuracy))
-        else:
-            print('Train loss: '+str(train_loss)+", test loss: "+str(test_loss)) 
+        print('Train loss: '+str(train_loss)+", test loss: "+str(test_loss)) 
         losses_ts.append(test_loss)
         if not best_loss_ts or (test_loss > best_loss_ts):
            # wandb.run.summary["best_loss"] = test_loss
