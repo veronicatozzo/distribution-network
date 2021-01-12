@@ -275,7 +275,7 @@ def train_sklearn_moments(X_tr,  y_tr, X_ts, y_ts, name='', model='KNN',
             model = KNeighborsRegressor
     elif model=='RF':
         # parameters = {'n_estimators': [100, 200], 'min_samples_split': [2, 4, 8]}
-        parameters = {'n_estimators': [100], 'min_samples_split': [30]}
+        parameters = {'n_estimators': [100], 'min_samples_split': [30], 'n_jobs': [-1]}
         if classification:
             model = RandomForestClassifier
         else:
