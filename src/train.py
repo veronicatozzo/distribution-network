@@ -22,14 +22,22 @@ from sklearn.inspection import plot_partial_dependence
 from sklearn.impute import SimpleImputer
 #from memory_profiler import profile
 
-
-def train_nn(model, name, optimizer, scheduler, train_generator, test_generator):
+#@profile
+def train_nn(model, name, optimizer, scheduler, train_generator, test_generator, classification=False):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     # by default, reduction = mean when multiple outputs
-    criterion = nn.MSELoss()
+    #criterion = nn.MSELoss() 
+    print(classification)
+    if classification:
+        criterion = nn.LogSigmoid()
+    else:
+        criterion = nn.MSELoss() 
     step = 0
-    best_loss = None
+    best_loss_ts = None
+    best_loss_tr = None
+    losses_tr = []
+    losses_ts = []
     dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
     for epoch in range(1000):
         aux = []
@@ -42,18 +50,37 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator)
             loss.backward()
             optimizer.step()
             step += 1
+        train_loss = np.mean(aux)
+        losses_tr.append(train_loss)
+        print(train_loss)
+        if not best_loss_tr or (train_loss > best_loss_tr):
+           # wandb.run.summary["best_loss"] = test_loss
+            best_loss_tr = train_loss
         scheduler.step()
         aux = []
+        accuracy = []
         for x, y in test_generator:
             x, y = x.type(dtype).to(device), y.type(dtype).to(device)
+#             if classification:
+#                  #y = torch.max(y_, 1)[1]
+#                 y = torch.squeeze(y).type(torch.LongTensor)
+#                 print(y.size)
             loss = criterion(model(x), y)
+            if classification:
+                accuracy.append(accuracy_score(model(x).detach().cpu().numpy(), y.detach().cpu().numpy().astype(np.int8)))
             aux.append(loss.item())
             #wandb.log({f"{name} test loss per step": loss}, step=step)
         test_loss = np.mean(aux)
-        if not best_loss or (test_loss > best_loss):
+        if classification:
+            print('Train loss: '+str(train_loss)+", test loss: "+str(test_loss)
+                  +'test accuracy: ' + np.mean(accuracy))
+        else:
+            print('Train loss: '+str(train_loss)+", test loss: "+str(test_loss)) 
+        losses_ts.append(test_loss)
+        if not best_loss_ts or (test_loss > best_loss_ts):
            # wandb.run.summary["best_loss"] = test_loss
-            best_loss = test_loss
-    return model
+            best_loss_ts = test_loss
+    return model, best_loss_tr, best_loss_ts, losses_tr, losses_ts
 
 
 

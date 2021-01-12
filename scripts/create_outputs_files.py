@@ -37,7 +37,10 @@ def find_matching_distributions(data, output):
 
             #for each row of data of that month search for correspondance in the distributions
             for j in range(data_month.shape[0]):
-                date = datetime.strptime(data_month.iloc[j, 1], '%m/%d/%Y %H:%M') 
+                try:
+                    date = datetime.strptime(data_month.iloc[j, 1], '%m/%d/%Y %H:%M') 
+                except:
+                    date = datetime.strptime(data_month.iloc[j, 1], '%m/%d/%Y') 
                 aux = complete_table[complete_table.iloc[:, 0]==data_month.iloc[j, 0]]
                 distances = np.array([(datetime.strptime(d, '%Y-%m-%d %H:%M:%S.%f') - date).days 
                                       for d in aux.iloc[:, 1]]).astype(np.int16)
@@ -103,126 +106,157 @@ if __name__ == "__main__":
     #i = 0
     #b = 0
     #while True:
-    complete_table = []
-    for i in range(len(files)):
-        t = pd.read_csv(files[i], header=None)
-        t.columns = ['mrn','date','age','sex', 'RBC','RETICS','BASOS','PAROX','PLTS','MCV','MCH','PCV','MPC','HCT','WBC']
-        splits = files[i].split('/')[-1].split('_')
-        fold, subfold = splits[0], splits[1].split('.')[0]
-        t['folder'] = '/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/data/'+fold+'/'+subfold+'/'
-        if isinstance(complete_table, list):
-            complete_table = t
-        else:
-            complete_table = complete_table.append(t)
-            #print(complete_table)
-            #i = i+1
-        #if complete_table.shape[0]>=batch_length:
-        #        break
-        #if i >= len(files):
-         #   break
+#     complete_table = []
+#     for i in range(len(files)):
+#         t = pd.read_csv(files[i], header=None)
+#         t.columns = ['mrn','date','age','sex', 'RBC','RETICS','BASOS','PAROX','PLTS','MCV','MCH','PCV','MPC','HCT','WBC']
+#         splits = files[i].split('/')[-1].split('_')
+#         fold, subfold = splits[0], splits[1].split('.')[0]
+#         t['folder'] = '/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/data/'+fold+'/'+subfold+'/'
+#         if isinstance(complete_table, list):
+#             complete_table = t
+#         else:
+#             complete_table = complete_table.append(t)
+#             #print(complete_table)
+#             #i = i+1
+#         #if complete_table.shape[0]>=batch_length:
+#         #        break
+#         #if i >= len(files):
+#          #   break
         
-    complete_table['file_id'] = complete_table.apply(lambda row : str(row['mrn'])+'_'+row['date'].split(' ')[0], axis = 1)
-    complete_table['age'] = complete_table.apply(lambda row : ''.join([c for c in str(row['age']) if c.isdigit()]), axis=1)
+#     complete_table['file_id'] = complete_table.apply(lambda row : str(row['mrn'])+'_'+row['date'].split(' ')[0], axis = 1)
+#     complete_table['age'] = complete_table.apply(lambda row : ''.join([c for c in str(row['age']) if c.isdigit()]), axis=1)
 
-    complete_table = complete_table[complete_table['age']!='']
-    complete_table = complete_table[complete_table['age'].astype(int)<=100]
-    # create outputs
+#     complete_table = complete_table[complete_table['age']!='']
+#     complete_table = complete_table[complete_table['age'].astype(int)<=100]
+#     # create outputs
 
-    table_ = complete_table[['mrn', 'date', 'age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']].copy()
-    table_.columns = ['mrn','date', 'Age', 'sex', 'RBC','RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']
+#     table_ = complete_table[['mrn', 'date', 'age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']].copy()
+#     table_.columns = ['mrn','date', 'Age', 'sex', 'RBC','RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']
 
-    # Age
-    path = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/outputs/"
-    table_['age'] = table_['Age']
-    table_ = table_[table_['Age'].notnull()]
-    aux = table_[['mrn', 'date','folder', 'file_id', 'age','sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Age']]
-    aux.to_csv(path+'Age.csv')
+#     # Age
+#     path = "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/outputs/"
+#     table_['age'] = table_['Age']
+#     table_ = table_[table_['Age'].notnull()]
+#     aux = table_[['mrn', 'date','folder', 'file_id', 'age','sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Age']]
+#     aux.to_csv(path+'Age.csv')
     
-    aux['Age_binned'] = pd.cut(aux['Age'].values.astype(int), np.arange(0, 110, 10), right=False, labels=np.arange(0, 10))
-    aux.to_csv(path+'Age_binned.csv')
+#     aux['Age_binned'] = pd.cut(aux['Age'].values.astype(int), np.arange(0, 110, 10), right=False, labels=np.arange(0, 10))
+#     aux.to_csv(path+'Age_binned.csv')
     
-    # Age thresholded 
-    table_ = complete_table[['mrn', 'date', 'age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']].copy()
-   # complete_table['file_id'] = complete_table.apply(lambda row : str(row['mrn'])+'_'+row['date'].split(' ')[0], axis = 1)
-    table_ = table_.astype({'age':int})
-    table_['Age65'] = table_['age']>=65
-    table_ = table_[table_['Age65'].notnull()]
-    aux = table_[['mrn', 'date',  'folder', 'file_id','age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Age65']]
-    aux.to_csv(path+'Age65.csv')
+#     # Age thresholded 
+#     table_ = complete_table[['mrn', 'date', 'age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']].copy()
+#    # complete_table['file_id'] = complete_table.apply(lambda row : str(row['mrn'])+'_'+row['date'].split(' ')[0], axis = 1)
+#     table_ = table_.astype({'age':int})
+#     table_['Age65'] = table_['age']>=65
+#     table_ = table_[table_['Age65'].notnull()]
+#     aux = table_[['mrn', 'date',  'folder', 'file_id','age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Age65']]
+#     aux.to_csv(path+'Age65.csv')
 
-
-    
-    # Sex
-    table_ = complete_table[['mrn', 'date', 'age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']].copy()
-    table_.columns = ['mrn','date', 'age', 'Sex', 'RBC','RETICS', 'BASOS', 'PAROX', 'PLTS',  'folder', 'file_id']
-    table_ = table_[table_['Sex'].notnull()]
-    aux = table_[['mrn', 'date',  'folder', 'file_id','age', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Sex']]
-    aux.to_csv(path+'Sex.csv')
 
     
-    # Age thresholded 
-    table_ = complete_table[['mrn', 'date', 'age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']].copy()
-   # complete_table['file_id'] = complete_table.apply(lambda row : str(row['mrn'])+'_'+row['date'].split(' ')[0], axis = 1)
-    table_ = table_.astype({'age':int})
-    table_['Age65'] = table_['age']>=65
-    table_ = table_[table_['Age65'].notnull()]
-    aux = table_[['mrn', 'date',  'folder', 'file_id','age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Age65']]
-    aux.to_csv(path+'Age65.csv')
+#     # Sex
+#     table_ = complete_table[['mrn', 'date', 'age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']].copy()
+#     table_.columns = ['mrn','date', 'age', 'Sex', 'RBC','RETICS', 'BASOS', 'PAROX', 'PLTS',  'folder', 'file_id']
+#     table_ = table_[table_['Sex'].notnull()]
+#     aux = table_[['mrn', 'date',  'folder', 'file_id','age', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Sex']]
+#     aux.to_csv(path+'Sex.csv')
 
     
-    # Hematrocrit 
-    table_ = complete_table[complete_table['HCT'].notnull()]
-    table_ = table_[['mrn', 'date', 'age', 'sex', 'HCT', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']].copy()
-    table_.columns = ['mrn','date', 'age', 'sex','Hematocrit', 'RBC','RETICS', 'BASOS', 'PAROX', 'PLTS','folder', 'file_id']
-    aux = table_[['mrn', 'date', 'age','sex','folder', 'file_id','RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Hematocrit']]
-    aux.to_csv(path+'Hematocrit.csv')
+#     # Age thresholded 
+#     table_ = complete_table[['mrn', 'date', 'age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']].copy()
+#    # complete_table['file_id'] = complete_table.apply(lambda row : str(row['mrn'])+'_'+row['date'].split(' ')[0], axis = 1)
+#     table_ = table_.astype({'age':int})
+#     table_['Age65'] = table_['age']>=65
+#     table_ = table_[table_['Age65'].notnull()]
+#     aux = table_[['mrn', 'date',  'folder', 'file_id','age', 'sex', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Age65']]
+#     aux.to_csv(path+'Age65.csv')
 
-    aux = table_[['mrn', 'date', 'age','sex','folder', 'file_id','RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Hematocrit']]
-    aux = aux[aux['sex'] =='F']
-    aux.to_csv(path+'Hematocrit_female.csv')
     
-    aux = table_[['mrn', 'date', 'age','sex','folder', 'file_id','RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Hematocrit']]
-    aux = aux[aux['sex'] =='M']
-    aux.to_csv(path+'Hematocrit_male.csv')
+#     # Hematrocrit 
+#     table_ = complete_table[complete_table['HCT'].notnull()]
+#     table_ = table_[['mrn', 'date', 'age', 'sex', 'HCT', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'folder', 'file_id']].copy()
+#     table_.columns = ['mrn','date', 'age', 'sex','Hematocrit', 'RBC','RETICS', 'BASOS', 'PAROX', 'PLTS','folder', 'file_id']
+#     aux = table_[['mrn', 'date', 'age','sex','folder', 'file_id','RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Hematocrit']]
+#     aux.to_csv(path+'Hematocrit.csv')
+
+#     aux = table_[['mrn', 'date', 'age','sex','folder', 'file_id','RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Hematocrit']]
+#     aux = aux[aux['sex'] =='F']
+#     aux.to_csv(path+'Hematocrit_female.csv')
+    
+#     aux = table_[['mrn', 'date', 'age','sex','folder', 'file_id','RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'Hematocrit']]
+#     aux = aux[aux['sex'] =='M']
+#     aux.to_csv(path+'Hematocrit_male.csv')
     
 
-     #White blood count 
-    table_ = complete_table.copy()
-    table_['WBC'] = table_['WBC'].replace([np.inf, -np.inf], np.nan)
-    table_ = table_[table_['WBC'].notnull()]
-    table_ = table_[['mrn', 'date', 'age', 'sex', 'WBC', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS','folder', 'file_id']].copy()
-    table_.columns = ['mrn','date','age', 'sex', 'WBC', 'RBC','RETICS', 'BASOS', 'PAROX', 'PLTS','folder', 'file_id']
-    aux = table_[['mrn', 'date','age', 'sex', 'folder', 'file_id', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'WBC']]
-    aux.to_csv(path+'WBC.csv')
-    print('im here')
-    aux = table_[['mrn', 'date','age', 'sex', 'folder', 'file_id', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'WBC']]
-    aux['WBC_binned'] = pd.cut(aux['WBC'], [0, 3, 11, 15, 30, 1000], right=True, labels=['0-3', '11-15', '15-30', '3-11', '30+'])
-    aux.to_csv(path+'WBC_binned.csv')
-#        b += 1
+#      #White blood count 
+#     table_ = complete_table.copy()
+#     table_['WBC'] = table_['WBC'].replace([np.inf, -np.inf], np.nan)
+#     table_ = table_[table_['WBC'].notnull()]
+#     table_ = table_[['mrn', 'date', 'age', 'sex', 'WBC', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS','folder', 'file_id']].copy()
+#     table_.columns = ['mrn','date','age', 'sex', 'WBC', 'RBC','RETICS', 'BASOS', 'PAROX', 'PLTS','folder', 'file_id']
+#     aux = table_[['mrn', 'date','age', 'sex', 'folder', 'file_id', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'WBC']]
+#     aux.to_csv(path+'WBC.csv')
+#     print('im here')
+#     aux = table_[['mrn', 'date','age', 'sex', 'folder', 'file_id', 'RBC', 'RETICS', 'BASOS', 'PAROX', 'PLTS', 'WBC']]
+#     aux['WBC_binned'] = pd.cut(aux['WBC'], [0, 3, 11, 15, 30, 1000], right=True, labels=['0-3', '11-15', '15-30', '3-11', '30+'])
+#     aux.to_csv(path+'WBC_binned.csv')
+# #        b += 1
 
 
 
-    #------------Ferritin
+#     #------------Ferritin
+#     path = '/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/query_labs/'
+#     tests = pd.read_csv(path+'ferritin.csv')
+#     tests = tests.append(pd.read_csv(path+'Ferritin_2007_2012.csv'))
+#     tests = tests[tests['Test']=='Ferritin']
+#     tests.sort_values(['date'], axis=0, inplace=True)
+#     tests = tests[tests['date']!='NaT']
+#     find_matching_distributions(tests, 'Ferritin')
+    
+    
+#     #------------Cholesterol and A1c 
+#     path = '/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/query_labs/cholesterol_a1c/'
+#     files = [join(path, f) for f in listdir(path)]
+#     for i, f in enumerate(files):
+#         if i == 0:
+#             tests = pd.read_csv(f)
+#         else:
+#             tests = tests.append(pd.read_csv(f))
+#     tests.sort_values(['date'], axis=0, inplace=True)
+#     tests = tests[tests['date']!='NaT']
+#     A1c = tests[tests['Test'].str.contains('A1C')]
+#     find_matching_distributions(A1c, 'A1c')
+#     cholesterol = tests[tests['Test'].str.contains('Cholesterol')]
+#     find_matching_distributions(cholesterol, 'Cholesterol')
+    
+    
+    #Vital signs
     path = '/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/query_labs/'
-    tests = pd.read_csv(path+'ferritin.csv')
-    tests = tests.append(pd.read_csv(path+'Ferritin_2007_2012.csv'))
-    tests = tests[tests['Test']=='Ferritin']
-    tests.sort_values(['date'], axis=0, inplace=True)
-    tests = tests[tests['date']!='NaT']
-    find_matching_distributions(tests, 'Ferritin')
+    vital_signs = pd.read_table(path+'JMH57_20201204_112419_MGH_Phy.txt', sep=',')
+    for i in range(2, 30):
+        vital_signs = vital_signs.append(pd.read_table(path+'JMH57_20201204_112419_MGH_Phy '+str(i)+'.txt', sep=','))
+    vital_signs = vital_signs[vital_signs['Value'].notnull()]
+    diastolic = ['Diastolic-LFA1162.2',
+       'Diastolic-LFA38141.2', 'Diastolic-LFA3959.2',
+       'Diastolic-LFA40005.2', 'Diastolic-LFA5393.2']
+    systolic = [ 'Systolic-LFA1162.1', 'Systolic-LFA38141.1', 'Systolic-LFA3959.1',
+           'Systolic-LFA40005.1', 'Systolic-LFA5393.1']
+    height = ['Height']
+    weight = ['Weight']
+    bmi = ['BMI']
     
+    table_ = vital_signs[vital_signs['Test'].isin(diastolic)]
+    find_matching_distributions(table_, 'Diastolic')
     
-    #------------Cholesterol and A1c 
-    path = '/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/query_labs/cholesterol_a1c/'
-    files = [join(path, f) for f in listdir(path)]
-    for i, f in enumerate(files):
-        if i == 0:
-            tests = pd.read_csv(f)
-        else:
-            tests = tests.append(pd.read_csv(f))
-    tests.sort_values(['date'], axis=0, inplace=True)
-    tests = tests[tests['date']!='NaT']
-    A1c = tests[tests['Test'].str.contains('A1C')]
-    find_matching_distributions(A1c, 'A1c')
-    cholesterol = tests[tests['Test'].str.contains('Cholesterol')]
-    find_matching_distributions(cholesterol, 'Cholesterol')
+    table_ = vital_signs[vital_signs['Test'].isin(systolic)]
+    find_matching_distributions(table_, 'Systolic')
+    
+    table_ = vital_signs[vital_signs['Test'].isin(height)]
+    find_matching_distributions(table_, 'Height')
+    
+    table_ = vital_signs[vital_signs['Test'].isin(weight)]
+    find_matching_distributions(table_, 'Weight')
+    
+    table_ = vital_signs[vital_signs['Test'].isin(bmi)]
+    find_matching_distributions(table_, 'BMI')

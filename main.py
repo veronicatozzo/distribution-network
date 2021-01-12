@@ -189,6 +189,9 @@ if __name__ == "__main__":
         model = model_dict[args.model](**model_params)
         optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
-        model = train_nn(model, args.name, optimizer, scheduler, train_generator, test_generator)
+        model, train_score, test_score = train_nn(model, args.name, optimizer, scheduler, train_generator, test_generator)
+        with open(args.output_file, 'a') as f:
+            writer = csv.writer(f)
+            writer.writerow([','.join(args.inputs), ','.join(args.outputs), args.model, args.imputation, args.missing_indicator, args.normalizer, train_score, test_score])
         if args.save:
             torch.save(model, args.name + '.pt')

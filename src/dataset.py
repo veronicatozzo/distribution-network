@@ -212,7 +212,7 @@ class FullLargeDataset(Dataset):
                  normalizer='all', test=False, stratify_by_patient=True, imputation='zero',
                  path_to_outputs="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/outputs",
                  path_to_files="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/data",
-                 path_to_id_list="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/id_files"):
+                 path_to_id_list="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/id_files/"):
        
         ids_ = set()
         ids_age = set()
@@ -221,7 +221,7 @@ class FullLargeDataset(Dataset):
         time_ = time.time()
         for j, o in enumerate(outputs):
             
-            table_o = pd.read_csv(path_to_outputs+"/"+o+".csv", index_col=0, nrows=2000)
+            table_o = pd.read_csv(path_to_outputs+"/"+o+".csv", index_col=0)
             if 'age' in list(table_o.columns):
                 table_ids_age = set(list(table_o.apply(lambda row : 
                                                               str(row['mrn'])+'_'+row['date'].split(' ')[0]+'_'+str(row['age']), axis = 1)))
@@ -230,10 +230,12 @@ class FullLargeDataset(Dataset):
             ids_ = ids_.intersection(table_ids)  if j != 0 else table_ids
             
             self.outputs.append(table_o)
+        print(len(table_ids), len(ids_))
         print('Looked at all output files, time', time.time() - time_)
         time_ = time.time()
+        id_file = id_file if os.path.exists(id_file) else path_to_id_list + id_file
         if (not os.path.exists(id_file)):
-            
+           
             if len(ids_age) ==  len(ids_): # all outputs have age we can proceed to balance the selection
                 aux = pd.DataFrame([[i.split('_')[0], i.split('_')[1], int(i.split('_')[2])]
                                  for i in list(ids_age)], columns = ['mrn', 'date', 'age'])
@@ -244,11 +246,14 @@ class FullLargeDataset(Dataset):
                                  for i in list(ids_)], columns = ['mrn', 'date'])
                 train, test = next(shuffle_split_no_overlapping_patients(aux, 
                                         train=0.8, n_splits=5, balance_age=False))
+                print(len(train), len(test))
             self.test_ids_ = np.array(list(ids_))[test]
             self.train_ids_ =  np.array(list(ids_))[train]
             save_id_file(self.train_ids_, self.test_ids_, id_file)
         else:
             id_list_train, id_list_test = read_id_file(id_file)
+            id_list_train = [t.split(' ')[0] for t in id_list_train]
+            id_list_test = [t.split(' ')[0] for t in id_list_test]
             self.test_ids_ = list(set(id_list_test).intersection(ids_))
             self.train_ids_ =  list(set(id_list_train).intersection(ids_))
         

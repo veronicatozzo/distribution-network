@@ -1,36 +1,31 @@
 import torch.nn as nn
-
+import torch
 
 class SmallDeepSet(nn.Module):
-    def __init__(self, n_outputs=1, n_inputs=1, **kwargs):
-        #change to take more than one input into account
-        
+    def __init__(self, n_outputs=1, n_enc_layers=4, n_hidden_units=64, n_dec_layers=1, **kwargs):
         super().__init__()
-        self.enc = nn.Sequential(
-            nn.Linear(in_features=2, out_features=64),
-            nn.ReLU(),
-            nn.Linear(in_features=64, out_features=64),
-            nn.ReLU(),
-            nn.Linear(in_features=64, out_features=64),
-            nn.ReLU(),
-            nn.Linear(in_features=64, out_features=64),
-        )
-        self.dec = nn.Sequential(
-            nn.Linear(in_features=64, out_features=64),
-            nn.ReLU(),
-            nn.Linear(in_features=64, out_features=n_outputs),
-        )
+        enc_layers = []
+        enc_layers.append(nn.Linear(in_features=2, out_features=n_hidden_units))
+        for i in range(n_enc_layers - 1):
+            enc_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
+            # don't add relu to last enc layer
+            if i < n_enc_layers - 2:
+                enc_layers.append(nn.ReLU())
+        self.enc = nn.Sequential(*enc_layers)
+        dec_layers = []
+        for i in range(n_dec_layers - 1):
+            dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
+            dec_layers.append(nn.ReLU())
+        dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_outputs))
+        self.dec = nn.Sequential(*dec_layers)
 
     def forward(self, x):
-        print(x.shape)
         if x.shape[1] > 1:
             encoded = []
             for j in range(x.shape[1]):
                 a = x[:, j, :, :].squeeze(1)
-                print(a.shape)
                 encoded.append(self.enc(a))
             x = torch.cat(encoded, 1)
-            print(x.shape)
         else:
             x = x.squeeze(1)
             x = self.enc(x)
@@ -39,8 +34,8 @@ class SmallDeepSet(nn.Module):
 class SmallDeepSetMax(SmallDeepSet):
     def forward(self, x):
         x = super().forward(x)
-        #x = self.enc(x)
-        x = x.max(dim=-2)
+       # x = self.enc(x)
+        x = torch.max(x, -2).values
         x = self.dec(x)
         return x
 
@@ -60,3 +55,12 @@ class SmallDeepSetSum(SmallDeepSet):
         x = self.dec(x)
         return x
 
+class TrivialMean(nn.Module):
+    def __init__(self, n_outputs=1, **kwargs):
+        super().__init__()
+        self.dec = nn.Linear(in_features=2, out_features=2)
+
+    def forward(self, x):
+        x = x.squeeze(1)
+        x = x.mean(dim=-2)
+        return self.dec(x)
