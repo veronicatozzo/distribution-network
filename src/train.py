@@ -23,7 +23,7 @@ from sklearn.impute import SimpleImputer
 #from memory_profiler import profile
 
 #@profile
-def train_nn(model, name, optimizer, scheduler, train_generator, test_generator, classification=False, n_epochs=3):
+def train_nn(model, name, optimizer, scheduler, train_generator, test_generator, classification=False, n_epochs=10):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
     model = model.to(device)
@@ -81,7 +81,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                 if not np.isnan(train_loss) and not best_loss_ts or (test_loss > best_loss_ts):
                     wandb.run.summary["best_loss"] = test_loss
                     best_loss_ts = test_loss
-    return model, best_loss_tr, best_loss_ts, losses_tr, losses_ts
+    return model, best_loss_tr, best_loss_ts
 
 
 

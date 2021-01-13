@@ -48,6 +48,7 @@ parser.add_argument('--step_size', type=int, default=50)
 parser.add_argument('--gamma', type=int, default=.1)
 parser.add_argument('--n_enc_layers', type=int, default=2)
 parser.add_argument('--n_hidden_units', type=int, default=64)
+parser.add_argument('--ln', dest='ln', action='store_true', help='whether to use layer norm')
 
 # KNN Divergence hyperparameters
 parser.add_argument('--k', type=int, default=5)
@@ -80,10 +81,10 @@ if __name__ == "__main__":
         name = args.name
     else:
         # name = '_'.join([args.model, ','.join(args.outputs), ','.join(args.inputs)])
-        name = '_'.join([args.model, str(args.lr), str(args.n_enc_layers), str(args.n_hidden_units)])
+        name = '_'.join([args.model, str(args.lr), str(args.n_enc_layers), str(args.n_hidden_units), str(args.ln)])
     # wandb.init(project="distribution-regression", name=name)
     # wandb.init(project="blood-distribution", name=name)
-    wandb.init(project="deep-samples")
+    wandb.init(project="deep-samples1", name=name)
     wandb.config.update(args)
 
     if args.id_file:

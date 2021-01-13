@@ -36,12 +36,12 @@ class SmallSetTransformer(nn.Module):
 
 
 class SmallDeepSamples(nn.Module):
-    def __init__(self, n_outputs=1, n_inputs=1, n_enc_layers=2, n_hidden_units=64, n_dec_layers=2, **kwargs):
+    def __init__(self, n_outputs=1, n_inputs=1, n_enc_layers=2, n_hidden_units=64, n_dec_layers=2, ln=False, **kwargs):
         super().__init__()
         self.enc_layers = []
-        self.enc_layers.append(MB(n_feats=2, hidden_size=n_hidden_units, first_layer=True))
+        self.enc_layers.append(MB(n_feats=2, hidden_size=n_hidden_units, first_layer=True, ln=ln))
         for i in range(n_enc_layers - 1):
-            self.enc_layers.append(MB(n_feats=2, hidden_size=n_hidden_units))
+            self.enc_layers.append(MB(n_feats=2, hidden_size=n_hidden_units, ln=ln))
         self.enc_layers = nn.ModuleList(self.enc_layers)
         self.dec = nn.Linear(in_features=n_hidden_units * n_inputs, out_features=n_outputs)
 
