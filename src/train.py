@@ -4,7 +4,7 @@ import warnings
 from itertools import combinations
 import joblib as jl
 
-#import wandb
+import wandb
 import numpy as np
 import pandas as pd
 import torch
@@ -23,8 +23,9 @@ from sklearn.impute import SimpleImputer
 #from memory_profiler import profile
 
 #@profile
-def train_nn(model, name, optimizer, scheduler, train_generator, test_generator, classification=False, n_epochs=1000):
+def train_nn(model, name, optimizer, scheduler, train_generator, test_generator, classification=False, n_epochs=3):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print(device)
     model = model.to(device)
     # by default, reduction = mean when multiple outputs
     #criterion = nn.MSELoss() 
@@ -39,36 +40,47 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
     losses_ts = []
     dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
     for epoch in range(n_epochs):
-        aux = []
-        for x, y in train_generator:
-            x, y = x.type(dtype).to(device), y.type(dtype).to(device)
-            loss = criterion(model(x), y)
-            aux.append(loss.item())
-            #wandb.log({f"{name} train loss per step": loss}, step=step)
+        train_aux = []
+        for x, y, lengths in train_generator:
+            x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
+            loss = criterion(model(x, lengths), y)
+            train_aux.append(loss.item())
+            wandb.log({f"{name} train loss per step": loss}, step=step)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             step += 1
-        train_loss = np.mean(aux)
-        losses_tr.append(train_loss)
-        print(train_loss)
-        if not best_loss_tr or (train_loss > best_loss_tr):
-           # wandb.run.summary["best_loss"] = test_loss
-            best_loss_tr = train_loss
-        scheduler.step()
-        aux = []
-        accuracy = []
-        for x, y in test_generator:
-            x, y = x.type(dtype).to(device), y.type(dtype).to(device)
-            loss = criterion(model(x), y)
-            aux.append(loss.item())
-            #wandb.log({f"{name} test loss per step": loss}, step=step)
-        test_loss = np.mean(aux)
-        print('Train loss: '+str(train_loss)+", test loss: "+str(test_loss)) 
-        losses_ts.append(test_loss)
-        if not best_loss_ts or (test_loss > best_loss_ts):
-           # wandb.run.summary["best_loss"] = test_loss
-            best_loss_ts = test_loss
+            if step % 250 == 0:
+                aux = []
+                accuracy = []
+                for x, y, lengths in test_generator:
+                    x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
+        #             if classification:
+        #                  #y = torch.max(y_, 1)[1]
+        #                 y = torch.squeeze(y).type(torch.LongTensor)
+        #                 print(y.size)
+                    loss = criterion(model(x, lengths), y)
+                    if classification:
+                        accuracy.append(accuracy_score(model(x, lengths).detach().cpu().numpy(), y.detach().cpu().numpy().astype(np.int8)))
+                    aux.append(loss.item())
+                test_loss = np.nanmean(aux)
+                wandb.log({f"{name} test loss per step": test_loss}, step=step)
+                train_loss = np.nanmean(train_aux)
+                losses_tr.append(train_loss)
+                print(train_loss)
+                if not np.isnan(train_loss) and not best_loss_tr or (train_loss > best_loss_tr):
+                    wandb.run.summary["best_loss"] = train_loss
+                    best_loss_tr = train_loss
+                scheduler.step()
+                if classification:
+                    print('Train loss: '+str(train_loss)+", test loss: "+str(test_loss)
+                        +'test accuracy: ' + np.nanmean(accuracy))
+                else:
+                    print('Train loss: '+str(train_loss)+", test loss: "+str(test_loss)) 
+                losses_ts.append(test_loss)
+                if not np.isnan(train_loss) and not best_loss_ts or (test_loss > best_loss_ts):
+                    wandb.run.summary["best_loss"] = test_loss
+                    best_loss_ts = test_loss
     return model, best_loss_tr, best_loss_ts, losses_tr, losses_ts
 
 
