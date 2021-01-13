@@ -69,3 +69,39 @@ class PMA(nn.Module):
 
     def forward(self, X):
         return self.mab(self.S.repeat(X.size(0), 1, 1), X)
+
+
+class MB(nn.Module):
+    """ Moment block (MB) 
+
+    No interactions between distributions
+    
+    """
+    def __init__(self, n_feats, hidden_size, first_layer=False, ln=False):
+        super(MB, self).__init__()
+        self.fc_q = nn.Linear(n_feats, hidden_size)
+        if first_layer:
+            self.fc_k = nn.Linear(n_feats, hidden_size)
+        else:
+            self.fc_k = nn.Linear(hidden_size, hidden_size)
+        if ln:
+            self.ln0 = nn.LayerNorm(hidden_size)
+            self.ln1 = nn.LayerNorm(hidden_size)
+        self.fc_o = nn.Linear(hidden_size, hidden_size)
+
+
+    def forward(self, Q, K):
+        """ 
+        Q and K are [batch, n_dist, n_samples, n_feats] 
+        Q is original input (keep passing it through)
+        K is previous layer output
+
+        """
+        Q = self.fc_q(Q)
+        K = self.fc_k(K)
+        # element-wise multiplication
+        O = Q * K
+        O = O if getattr(self, 'ln0', None) is None else self.ln0(O)
+        O = O + F.relu(self.fc_o(O))
+        O = O if getattr(self, 'ln1', None) is None else self.ln1(O)
+        return O

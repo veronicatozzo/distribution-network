@@ -4,13 +4,13 @@ import sys
 # sys.path.append("/misc/vlgscratch5/RanganathGroup/lily/miniconda3/envs/blood_matlab/lib/python3.7/site-packages/")
 import argparse
 from datetime import datetime
-#import wandb
+import wandb
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
 from deep_sets.models import SmallDeepSetMax, SmallDeepSetMean, SmallDeepSetSum
-from set_transformer.models import SmallSetTransformer
+from set_transformer.models import SmallSetTransformer, SmallDeepSamples
 from src.dataset import FullSampleDataset, FullLargeDataset
 from src.train import train_nn, train_KNNDivergence, train_distribution2distrbution, train_sklearn_moments, baseline
 
@@ -46,6 +46,8 @@ parser.add_argument('--num_workers', type=int, default=4, help='number of cpu wo
 parser.add_argument('--lr', type=float, default=.001)
 parser.add_argument('--step_size', type=int, default=50)
 parser.add_argument('--gamma', type=int, default=.1)
+parser.add_argument('--n_enc_layers', type=int, default=2)
+parser.add_argument('--n_hidden_units', type=int, default=64)
 
 # KNN Divergence hyperparameters
 parser.add_argument('--k', type=int, default=5)
@@ -63,6 +65,7 @@ model_dict = dict(
     DeepSetsMax=SmallDeepSetMax,
     DeepSetsMean=SmallDeepSetMean,
     DeepSetsSum=SmallDeepSetSum,
+    DeepSamples=SmallDeepSamples,
 )
 
 outputs_dict = dict(
@@ -76,10 +79,12 @@ if __name__ == "__main__":
     if args.name:
         name = args.name
     else:
-        name = '_'.join([args.model, ','.join(args.outputs), ','.join(args.inputs)])
+        # name = '_'.join([args.model, ','.join(args.outputs), ','.join(args.inputs)])
+        name = '_'.join([args.model, str(args.lr), str(args.n_enc_layers), str(args.n_hidden_units)])
     # wandb.init(project="distribution-regression", name=name)
     # wandb.init(project="blood-distribution", name=name)
-    # wandb.config.update(args)
+    wandb.init(project="deep-samples")
+    wandb.config.update(args)
 
     if args.id_file:
         id_file = args.id_file
@@ -115,9 +120,6 @@ if __name__ == "__main__":
             path_to_id_list=path_to_id_list
         ))
 
-    # dates inputs outputs
-    if len(args.inputs) > 1 and args.num_subsamples == -1:
-        raise NotImplemented("Cannot support multiple distributions with differential numbers of subsamples")
     if len(args.inputs) > 1 and args.model in ['KNNDiv', 'DistReg']:
         raise NotImplemented("Cannot support multiple distributions with KNNDiv and DistReg")
 
@@ -136,6 +138,7 @@ if __name__ == "__main__":
         else:
             Dataset = FullSampleDataset
         train_data = Dataset(test=False, **data_config)
+        # decrease validation time
         test_data = Dataset(test=True, **data_config)
         print("Missing inputs in train: ", train_data.missing_inputs)
         print("Missing inputs in test: ", test_data.missing_inputs)
@@ -185,7 +188,7 @@ if __name__ == "__main__":
                                 pin_memory=False,
                                 drop_last=True)
         
-        model_params = {'n_outputs': len(args.outputs), 'n_inputs': len(args.inputs)}
+        model_params = {'n_outputs': len(args.outputs), 'n_inputs': len(args.inputs), 'n_enc_layers': args.n_enc_layers, 'n_hidden_units': args.n_hidden_units}
         model = model_dict[args.model](**model_params)
         optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)

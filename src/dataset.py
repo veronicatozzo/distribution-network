@@ -15,6 +15,8 @@ from utils import shuffle_split_no_overlapping_patients, save_id_file
 from utils import  save_id_file, read_id_file
 import time 
 
+SAMPLE_SIZE=50000
+
 def select_one_patient_instance(ids_):
     """ Note: Will not be deterministic due to the set """
     ids = set()
@@ -185,6 +187,15 @@ def get_file(output, id_, input_):
         file = output[output['file_id']==id_]['folder'].iloc[0]+input_.upper()+'/'+id_+'_'+input_.upper()+'.npy'
     return file
 
+def pad_or_cut(X, sample_size):
+    """ Get n_samples to be sample_size
+    x: [n_samples, n_feats] 
+    
+    """
+    if X.shape[0] < sample_size:
+        return np.pad(X, (0, sample_size - X.shape[0]), 'constant')
+    else:
+        return X[:sample_size]
 
 class FullLargeDataset(Dataset):
     """
@@ -207,7 +218,7 @@ class FullLargeDataset(Dataset):
     """
     def __init__(self, inputs=[], outputs = [],
                  id_file=None,
-                  num_samples=50000, num_subsamples=100, 
+                 num_samples=-1, num_subsamples=100, 
                  permute_subsamples=True, 
                  normalizer='all', test=False, stratify_by_patient=True, imputation='zero',
                  path_to_outputs="/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/outputs",
@@ -264,7 +275,6 @@ class FullLargeDataset(Dataset):
             print(len(self.ids_))
         else:
             print(len(self.train_ids_))
-            print(np.random.choice(self.train_ids_, size=min(num_samples, len(self.train_ids_)), replace=False).shape)
             self.ids_ = self.train_ids_ if num_samples == -1 else list(np.random.choice(self.train_ids_, size=min(num_samples, len(self.train_ids_)), replace=False))
             print(len(self.ids_))
         print('Selected sub-samples, time:', time.time() - time_)
@@ -275,7 +285,7 @@ class FullLargeDataset(Dataset):
                 ss = SetStandardScaler(stream=True)
 
                 ss.fit([get_file(self.outputs[0], i, input_type)
-                        for i in self.train_ids_])
+                        for i in self.train_ids_[:300]])
                 self._setstandardscaler.append(ss)
         print('Passed pre-processing, time:', time.time() - time_)
         self.num_subsamples = num_subsamples
@@ -289,6 +299,7 @@ class FullLargeDataset(Dataset):
     def __getitem__(self, index):
 
         xs = []
+        lengths = []
         #time_ = time.time()
         for i, input_type in enumerate(self.inputs):
             try:
@@ -302,26 +313,32 @@ class FullLargeDataset(Dataset):
                     x = StandardScaler().fit_transform(x)
 
                 if self.num_subsamples == -1:
-                    xs.append(x)
-                elif self.permutate_subsamples:
-                    if x.shape[0] < self.num_subsamples: # corner case, added for soundness
-                        perm = np.random.choice(np.arange(x.shape[0]), 
-                                            self.num_subsamples, replace=True)
-                    else:
-                        perm = np.random.permutation(np.arange(x.shape[0]))[:self.num_subsamples]
-                    xs.append(x[perm, :])
+                    length = x.shape[0]
+                    new_x = pad_or_cut(x, SAMPLE_SIZE)
+                    xs.append(new_x)
+                    lengths.append(length)
                 else:
-                    if x.shape[0]>=self.num_subsamples:
-                        xs.append(x[:self.num_subsamples, :])
+                    lengths.append(self.num_subsamples)
+                    if self.permutate_subsamples:
+                        if x.shape[0] < self.num_subsamples: # corner case, added for soundness
+                            perm = np.random.choice(np.arange(x.shape[0]), 
+                                                self.num_subsamples, replace=True)
+                        else:
+                            perm = np.random.permutation(np.arange(x.shape[0]))[:self.num_subsamples]
+                        xs.append(x[perm, :])
                     else:
-                        perm = np.random.choice(np.arange(x.shape[0]),
-                                         self.num_subsamples, replace=True)
-                        xs.append(x[perm, :])           
+                        if x.shape[0]>=self.num_subsamples:
+                            xs.append(x[:self.num_subsamples, :])
+                        else:
+                            perm = np.random.choice(np.arange(x.shape[0]),
+                                            self.num_subsamples, replace=True)
+                            xs.append(x[perm, :])           
                       
             except:
+                lengths.append(self.num_subsamples)
                 self.missing_inputs[input_type] += 1
                 if self.num_subsamples == -1:
-                    subsamples = 100
+                    subsamples = SAMPLE_SIZE
                 else:
                     subsamples = self.num_subsamples
                 if self.imputation == 'zero':
@@ -332,11 +349,11 @@ class FullLargeDataset(Dataset):
         ys = []
         for output in self.outputs:
             ys.append(output[output['file_id']==self.ids_[index]].iloc[0, -1])
+        # if self.num_subsamples == -1:
+        #     return xs, ys
 
-        if self.num_subsamples == -1:
-            return xs, ys
-
-        return np.array(xs), np.array(ys)
+        assert len(xs)==len(lengths), "{}, {}, {}".format(len(xs), len(lengths))
+        return np.array(xs), np.array(ys), np.array(lengths)
 
     def __len__(self):
         return len(self.ids_)
