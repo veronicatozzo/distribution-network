@@ -84,7 +84,8 @@ if __name__ == "__main__":
         name = '_'.join([args.model, str(args.lr), str(args.n_enc_layers), str(args.n_hidden_units), str(args.ln)])
     # wandb.init(project="distribution-regression", name=name)
     # wandb.init(project="blood-distribution", name=name)
-    wandb.init(project="deep-samples1", name=name)
+    #wandb.init(project="deep-samples1", name=name)
+    wandb.init(project="moments, name=name)
     wandb.config.update(args)
 
     if args.id_file:
@@ -194,6 +195,7 @@ if __name__ == "__main__":
             'n_inputs': len(args.inputs),
             'n_enc_layers': args.n_enc_layers,
             'n_hidden_units': args.n_hidden_units,
+            'ln':args.ln,
             'device': device}
         model = model_dict[args.model](**model_params)
         optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)
