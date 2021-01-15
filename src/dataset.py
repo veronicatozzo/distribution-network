@@ -238,6 +238,8 @@ class FullLargeDataset(Dataset):
                                                               str(row['mrn'])+'_'+row['date'].split(' ')[0]+'_'+str(row['age']), axis = 1)))
                 ids_age = ids_age.intersection(table_ids_age) if j != 0 else table_ids_age
             table_ids = set(np.unique(table_o['file_id'].values).tolist())
+            # currently we do not support missing outputs
+            # a patient must have all to be considered
             ids_ = ids_.intersection(table_ids)  if j != 0 else table_ids
             
             self.outputs.append(table_o)

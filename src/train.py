@@ -23,7 +23,7 @@ from sklearn.impute import SimpleImputer
 #from memory_profiler import profile
 
 #@profile
-def train_nn(model, name, optimizer, scheduler, train_generator, test_generator, classification=False, n_epochs=10):
+def train_nn(model, name, optimizer, scheduler, train_generator, test_generator, classification=False, n_epochs=10, outputs=[]):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
     model = model.to(device)
@@ -32,7 +32,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
     if classification:
         criterion = nn.BCELoss()
     else:
-        criterion = nn.MSELoss() 
+        criterion = nn.MSELoss(reduction="none") 
     step = 0
     best_loss_ts = None
     best_loss_tr = None
@@ -42,10 +42,17 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
     for epoch in range(n_epochs):
         train_aux = []
         for x, y, lengths in train_generator:
+            print(len(lengths))
             x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
-            loss = criterion(model(x, lengths), y)
+            loss_elements = criterion(model(x, lengths), y)
+            loss = loss_elements.mean()
             train_aux.append(loss.item())
+            # TODO: maybe we don't want to log at every step
             wandb.log({f"{name} train loss per step": loss}, step=step)
+            outputs_loss = loss_elements.mean(dim=0)
+            assert len(outputs) == len(outputs_loss)
+            per_output_loss = {o: l for o, l in zip(outputs, outputs_loss)}
+            wandb.log({f"{name} train loss per step, stratified": per_output_loss}, step=step)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
