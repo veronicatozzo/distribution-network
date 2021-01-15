@@ -188,12 +188,17 @@ if __name__ == "__main__":
                                 num_workers=args.num_workers,
                                 pin_memory=False,
                                 drop_last=True)
-        
-        model_params = {'n_outputs': len(args.outputs), 'n_inputs': len(args.inputs), 'n_enc_layers': args.n_enc_layers, 'n_hidden_units': args.n_hidden_units}
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        model_params = {
+            'n_outputs': len(args.outputs),
+            'n_inputs': len(args.inputs),
+            'n_enc_layers': args.n_enc_layers,
+            'n_hidden_units': args.n_hidden_units,
+            'device': device}
         model = model_dict[args.model](**model_params)
         optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
-        model, train_score, test_score = train_nn(model, args.name, optimizer, scheduler, train_generator, test_generator)
+        model, train_score, test_score = train_nn(model, args.name, optimizer, scheduler, train_generator, test_generator, outputs=args.outputs)
         with open(args.output_file, 'a') as f:
             writer = csv.writer(f)
             writer.writerow([','.join(args.inputs), ','.join(args.outputs), args.model, args.imputation, args.missing_indicator, args.normalizer, train_score, test_score])
