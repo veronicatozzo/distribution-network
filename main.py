@@ -49,6 +49,7 @@ parser.add_argument('--gamma', type=int, default=.1)
 parser.add_argument('--n_enc_layers', type=int, default=2)
 parser.add_argument('--n_hidden_units', type=int, default=64)
 parser.add_argument('--ln', dest='ln', action='store_true', help='whether to use layer norm')
+parser.add_argument('--plot_gradients', dest='plot_gradients', action='store_true', help='whether plot gradients')
 
 # KNN Divergence hyperparameters
 parser.add_argument('--k', type=int, default=5)
@@ -84,8 +85,8 @@ if __name__ == "__main__":
         name = '_'.join([args.model, str(args.lr), str(args.n_enc_layers), str(args.n_hidden_units), str(args.ln)])
     # wandb.init(project="distribution-regression", name=name)
     # wandb.init(project="blood-distribution", name=name)
-    #wandb.init(project="deep-samples1", name=name)
-    wandb.init(project="moments, name=name)
+    wandb.init(project="deep-samples1", name=name)
+    #wandb.init(project="moments", name=name)
     wandb.config.update(args)
 
     if args.id_file:
@@ -200,7 +201,7 @@ if __name__ == "__main__":
         model = model_dict[args.model](**model_params)
         optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
-        model, train_score, test_score = train_nn(model, args.name, optimizer, scheduler, train_generator, test_generator, outputs=args.outputs)
+        model, train_score, test_score = train_nn(model, args.name, optimizer, scheduler, train_generator, test_generator, outputs=args.outputs, plot_gradients=args.plot_gradients)
         with open(args.output_file, 'a') as f:
             writer = csv.writer(f)
             writer.writerow([','.join(args.inputs), ','.join(args.outputs), args.model, args.imputation, args.missing_indicator, args.normalizer, train_score, test_score])

@@ -23,11 +23,10 @@ from sklearn.impute import SimpleImputer
 #from memory_profiler import profile
 
 #@profile
-def train_nn(model, name, optimizer, scheduler, train_generator, test_generator, classification=False, n_epochs=10, outputs=[]):
+def train_nn(model, name, optimizer, scheduler, train_generator, test_generator, classification=False, n_epochs=10, outputs=[], plot_gradients=True):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
     model = model.to(device)
-    wandb.watch(model, log='all')
     # by default, reduction = mean when multiple outputs
     #criterion = nn.MSELoss() 
     if classification:
@@ -58,6 +57,10 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            if plot_gradients:
+                for name, param in model.named_parameters():
+                    wandb.log({f"{name} gradients": wandb.Histogram(param.grad.cpu().clone())}, step=step)
+                    print(name, param.grad)
             step += 1
             if step % 250 == 0:
                 aux = []
