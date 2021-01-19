@@ -28,6 +28,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
         import wandb
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
+    print(classification)
     model = model.to(device)
     if use_wandb:
         wandb.watch(model, log='all')
@@ -50,6 +51,8 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
             loss_elements = criterion(model(x, lengths), y)
             loss = loss_elements.mean()
+            if np.isnan(loss.item()):
+                raise ValueError("Train loss is nan: ", loss)
             train_aux.append(loss.item())
             # TODO: maybe we don't want to log at every step
             if use_wandb:
@@ -70,7 +73,8 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                     x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
                     loss_elements = criterion(model(x, lengths), y)
                     loss = loss_elements.mean()
-                    print(loss)
+                    if np.isnan(loss.item()):
+                        raise ValueError("Test loss is nan: ", loss)
                     if classification:
                         accuracy.append(accuracy_score(model(x, lengths).detach().cpu().numpy(),
                                                        y.detach().cpu().numpy().astype(np.int8)))

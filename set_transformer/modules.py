@@ -77,7 +77,7 @@ class MB(nn.Module):
     No interactions between distributions
     
     """
-    def __init__(self, n_feats, hidden_size, first_layer=False, ln=False):
+    def __init__(self, n_feats, hidden_size, first_layer=False, ln=False, bn=False):
         super(MB, self).__init__()
         self.fc_q = nn.Linear(n_feats, hidden_size)
         if first_layer:
@@ -87,6 +87,17 @@ class MB(nn.Module):
         if ln:
             self.ln0 = nn.LayerNorm(hidden_size)
             self.ln1 = nn.LayerNorm(hidden_size)
+            self.norm = 'ln'
+        elif bn:
+            # TODO: don't hard-code
+            n_dists = 5
+            self.ln0 = nn.BatchNorm1d(hidden_size * n_dists)
+            self.ln1 = nn.BatchNorm1d(hidden_size * n_dists)
+            self.norm = 'bn'
+        else:
+            self.norm = 'none'
+#         if ln and bn:
+#             raise ValueError("Don't wan't layer norm and batch norm together")
         self.fc_o = nn.Linear(hidden_size, hidden_size)
 
 
@@ -101,7 +112,15 @@ class MB(nn.Module):
         K = self.fc_k(K)
         # element-wise multiplication
         O = Q * K
-        O = O if getattr(self, 'ln0', None) is None else self.ln0(O)
-        O = O + F.relu(self.fc_o(O))
-        O = O if getattr(self, 'ln1', None) is None else self.ln1(O)
+        if self.norm == 'ln':
+            O = self.ln0(O)
+            O = O + F.relu(self.fc_o(O))
+            O = self.ln1(O)
+        elif self.norm == 'bn':
+            batch, n_dists, n_samples, n_feats = O.shape
+            O = torch.transpose(O, 1, 2)
+            O = self.ln0(O.reshape(batch * n_samples, n_dists * n_feats))
+            O = O + F.relu(self.fc_o(O.reshape(batch, n_samples, n_dists, n_feats)))
+            O = self.ln1(O.reshape(batch * n_samples, n_dists * n_feats))
+            O = torch.transpose(O.reshape(batch, n_samples, n_dists, n_feats), 1, 2)
         return O
