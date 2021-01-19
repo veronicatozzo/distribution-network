@@ -42,18 +42,19 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
     for epoch in range(n_epochs):
         train_aux = []
         for x, y, lengths in train_generator:
-            print(len(lengths))
             x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
             loss_elements = criterion(model(x, lengths), y)
             loss = loss_elements.mean()
+            if np.isnan(loss.item()):
+                raise ValueError("Train loss is nan: ", loss)
             train_aux.append(loss.item())
             # TODO: maybe we don't want to log at every step
-            wandb.log({f"{name} train loss per step": loss}, step=step)
+            wandb.log({f"train loss per step": loss}, step=step)
             if len(outputs) > 1:
                 outputs_loss = loss_elements.mean(dim=0)
                 assert len(outputs) == len(outputs_loss)
                 per_output_loss = {o: l for o, l in zip(outputs, outputs_loss)}
-                wandb.log({f"{name} train loss per step, stratified": per_output_loss}, step=step)
+                wandb.log({f"train loss per step, stratified": per_output_loss}, step=step)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -73,16 +74,18 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
         #                 print(y.size)
                     loss_elements = criterion(model(x, lengths), y)
                     loss = loss_elements.mean()
+                    if np.isnan(loss.item()):
+                        raise ValueError("Test loss is nan: ", loss)
                     if classification:
                         accuracy.append(accuracy_score(model(x, lengths).detach().cpu().numpy(), y.detach().cpu().numpy().astype(np.int8)))
                     aux.append(loss.item())
                 test_loss = np.nanmean(aux)
-                wandb.log({f"{name} test loss per step": test_loss}, step=step)
+                wandb.log({f"test loss per step": test_loss}, step=step)
                 if len(outputs) > 1:
                     outputs_loss = loss_elements.mean(dim=0)
                     assert len(outputs) == len(outputs_loss)
                     per_output_loss = {o: l for o, l in zip(outputs, outputs_loss)}
-                    wandb.log({f"{name} train loss per step, stratified": per_output_loss}, step=step)
+                    wandb.log({f"train loss per step, stratified": per_output_loss}, step=step)
                 train_loss = np.nanmean(train_aux)
                 losses_tr.append(train_loss)
                 print(train_loss)

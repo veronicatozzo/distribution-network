@@ -35,15 +35,17 @@ class SmallSetTransformer(nn.Module):
 
 
 class SmallDeepSamples(nn.Module):
-    def __init__(self, n_outputs=1, n_inputs=1, n_enc_layers=2, n_hidden_units=64, n_dec_layers=2, ln=False, device='cuda:0', **kwargs):
+    def __init__(self, n_outputs=1, n_inputs=1, n_enc_layers=2, n_hidden_units=64, n_dec_layers=2,
+                ln=False, device='cuda:0', bn=False, standardize_features=False, **kwargs):
         super().__init__()
         self.enc_layers = []
         self.enc_layers.append(MB(n_feats=2, hidden_size=n_hidden_units, first_layer=True, ln=ln))
         for i in range(n_enc_layers - 1):
-            self.enc_layers.append(MB(n_feats=2, hidden_size=n_hidden_units, ln=ln))
+            self.enc_layers.append(MB(n_feats=2, hidden_size=n_hidden_units, ln=ln, bn=bn))
         self.enc_layers = nn.ModuleList(self.enc_layers)
         self.dec = nn.Linear(in_features=n_hidden_units * n_inputs, out_features=n_outputs)
         self.device = device
+        self.standardize_features = standardize_features
 
     def forward(self, x, lengths):
         """ lengths: [batch, n_dists] """
@@ -54,4 +56,8 @@ class SmallDeepSamples(nn.Module):
         # [batch, n_dists, n_samples]
         length_mask = torch.arange(n_samples).expand(lengths.shape[0], lengths.shape[1], n_samples).to(self.device) < lengths.unsqueeze(-1)
         out = (out * length_mask.unsqueeze(-1)).sum(dim=-2) / length_mask.sum(dim=-1).unsqueeze(-1)
-        return self.dec(out.reshape(batch, -1))
+        out = out.reshape(batch, -1)
+        # manually standardize at the end
+        if self.standardize_features:
+            out = (out - out.mean(dim=0).reshape((1, -1))) / out.std(dim=0).reshape((1, -1))
+        return self.dec(out)
