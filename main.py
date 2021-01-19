@@ -85,9 +85,10 @@ if __name__ == "__main__":
         name = '_'.join([args.model, str(args.lr), str(args.n_enc_layers), str(args.n_hidden_units), str(args.ln)])
     # wandb.init(project="distribution-regression", name=name)
     # wandb.init(project="blood-distribution", name=name)
-    wandb.init(project="deep-samples1", name=name)
-    #wandb.init(project="moments", name=name)
-    wandb.config.update(args)
+    #wandb.init(project="deep-samples1", name=name)
+#     wandb.init(project="deep-samples_ln_vero", name=name)
+    wandb.init(project="set_transformers", name=name)
+#     wandb.config.update(args)
 
     if args.id_file:
         id_file = args.id_file
