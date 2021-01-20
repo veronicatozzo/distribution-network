@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+import numpy as np
 
 
 class MAB(nn.Module):
@@ -16,16 +17,19 @@ class MAB(nn.Module):
         self.fc_q = nn.Linear(dim_Q, dim_V)
         self.fc_k = nn.Linear(dim_K, dim_V)
         self.fc_v = nn.Linear(dim_K, dim_V)
-        if ln:
-            self.ln0 = nn.LayerNorm(dim_V)
-            self.ln1 = nn.LayerNorm(dim_V)
+#         if ln:
+#             self.ln0 = nn.LayerNorm(dim_V)
+#             self.ln1 = nn.LayerNorm(dim_V)
         self.fc_o = nn.Linear(dim_V, dim_V)
 
     def forward(self, Q, K):
         Q = self.fc_q(Q)
         K, V = self.fc_k(K), self.fc_v(K)
-
+        print(self.dim_V)
+        print(self.num_heads)
         dim_split = self.dim_V // self.num_heads
+        dim_split = 2**int(round(np.log2(dim_split),0))
+        print(dim_split)
         Q_ = torch.cat(Q.split(dim_split, 2), 0)
         K_ = torch.cat(K.split(dim_split, 2), 0)
         V_ = torch.cat(V.split(dim_split, 2), 0)
@@ -120,7 +124,8 @@ class MB(nn.Module):
             batch, n_dists, n_samples, n_feats = O.shape
             O = torch.transpose(O, 1, 2)
             O = self.ln0(O.reshape(batch * n_samples, n_dists * n_feats))
-            O = O + F.relu(self.fc_o(O.reshape(batch, n_samples, n_dists, n_feats)))
+            O = O.reshape(batch, n_samples, n_dists, n_feats)
+            O = O + F.relu(self.fc_o(O))
             O = self.ln1(O.reshape(batch * n_samples, n_dists * n_feats))
             O = torch.transpose(O.reshape(batch, n_samples, n_dists, n_feats), 1, 2)
         return O

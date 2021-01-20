@@ -24,10 +24,12 @@ class SmallSetTransformer(nn.Module):
             encoded = []
             for j in range(x.shape[1]):
                 a = x[:, j, :, :].squeeze(1)
+                print(a.shape)
                 encoded.append(self.enc(a))
             x = torch.cat(encoded, 1)
         else:
             x = x.squeeze(1)
+            print(x.shape)
             x = self.enc(x)
         x = self.dec(x)
         # TODO: change squeeze(1) for multiple inputs
