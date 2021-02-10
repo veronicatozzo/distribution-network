@@ -8,6 +8,8 @@ import torch.nn.functional as F
 import torch.nn as nn
 import torch
 
+from src.dataset import FullLargeDataset
+
 
 class SyntheticDataset(Dataset):
     def __init__(self, N=1000, n_samples=500, n_dim=2, n_outputs=1, output_name='x^2'):
@@ -143,7 +145,10 @@ class EnsembleNetwork(nn.Module):
         for m in self.models:
             xs.append(m.forward(x.clone().to(device)))
         # print(xs[0].shape)
-        x = torch.cat(xs, dim=1)
+        x = torch.cat(xs, dim=-1)
+        # extra n_dists
+        if len(x.shape) == 3:
+            x = x.reshape((x.shape[0], -1))
         # print(x.shape)
         x = self.classifier(x)
         return x
@@ -261,35 +266,55 @@ if __name__ == "__main__":
     parser.add_argument('-om', '--output_multiplier', default=1, type=int)  # total features before linear layer will be outputs * features * om
     parser.add_argument('-on', '--output_name', default='x^2', help='x^2|var', type=str)
     parser.add_argument('--name', type=str)
+    parser.add_argument('--hematocrit', action='store_true')
     args = parser.parse_args()
 
     if args.name:
-        wandb.init(project='synthetic_moments1', name=args.name)
+        wandb.init(project='synthetic-moments1', name=args.name)
     else:
-        wandb.init(project='synthetic_moments1')
+        wandb.init(project='synthetic-moments1')
 
-    train = SyntheticDataset(10000, args.sample_size, args.features, args.outputs, args.output_name)
-    test = SyntheticDataset(1000, args.sample_size, args.features, args.outputs, args.output_name)
+    if args.hematocrit:
+        data_config = {
+            'inputs': ["rbc", "retics", "plt", "basos", "perox"],
+            'outputs': ["Hematocrit"],
+            'id_file': "/misc/vlgscratch5/RanganathGroup/lily/blood_dist/data_large/id_files/Hematocrit_rbc,retics,plt,basos,perox_January-1-2021.txt",
+            # 'num_samples': args.num_samples,
+            'num_subsamples': 1000,
+            'permute_subsamples': False,
+            'normalizer': "none",
+            'imputation': "zero"
+        }
+        Dataset = FullLargeDataset
+        train = Dataset(test=False, **data_config)
+        test = Dataset(test=True, **data_config)
+        num_workers = 4
+        n_dists = 5
+        n_final_outputs = args.outputs
+    else:
+        train = SyntheticDataset(10000, args.sample_size, args.features, args.outputs, args.output_name)
+        test = SyntheticDataset(1000, args.sample_size, args.features, args.outputs, args.output_name)
+        num_workers = 1
+        n_dists = 1
+        n_final_outputs = n_outputs * args.features if n_outputs < 5 else n_outputs * args.features - 1
     train_generator = DataLoader(train,
                                     batch_size=args.batch_size,
                                     shuffle=True,
-                                    num_workers=1,
+                                    num_workers=num_workers,
                                     pin_memory=False,
                                     drop_last=True)
     test_generator = DataLoader(test,
                             batch_size=args.batch_size,
                             shuffle=True,
-                            num_workers=1,
+                            num_workers=num_workers,
                             pin_memory=False,
                             drop_last=True)
 
     n_outputs = args.outputs
     num_models = n_outputs * args.output_multiplier
-    n_final_outputs = n_outputs * args.features if n_outputs < 5 else n_outputs * args.features - 1
-    print('n_final_outputs', n_final_outputs)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = EnsembleNetwork([BasicDeepSetMean(n_inputs=args.features, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers).to(device) 
-                            for i in range(num_models)], n_outputs=n_final_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features)
+                            for i in range(num_models)], n_outputs=n_final_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
 
