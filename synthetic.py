@@ -7,40 +7,74 @@ import itertools
 import torch.nn.functional as F
 import torch.nn as nn
 import torch
+import copy
 
-from src.dataset import FullLargeDataset
+#from .src.dataset import FullLargeDataset
 
 
 class SyntheticDataset(Dataset):
-    def __init__(self, N=1000, n_samples=500, n_dim=2, n_outputs=1, output_name='x^2'):
+    def __init__(self, N=1000, n_samples=500, n_distr=1, n_dim=2, n_outputs=1, output_name='x^2'):
         self.N = N
         self.n_samples = n_samples
         self.n_dim = n_dim
         self.Xs = []
         self.ys = []
         for n in range(N):
-            cov = make_spd_matrix(self.n_dim)
-            X = np.random.multivariate_normal(np.random.randn(self.n_dim), cov, size=self.n_samples, check_valid='warn', tol=1e-8)
-            self.Xs.append(X)
-            X2 = X**2
-            means2 = np.mean(X2, axis=0)
-            means = np.mean(X, axis=0)
-            stds = np.std(X, axis=0)
+            x = []
+            y = []
+            for d in range(n_distr):
+                cov = make_spd_matrix(self.n_dim)
+                X = np.random.multivariate_normal(np.random.randn(self.n_dim), cov, size=self.n_samples, check_valid='warn', tol=1e-8)
+                x.append(X)
+                X2 = X**2
+                means2 = np.mean(X2, axis=0)
+                means = np.mean(X, axis=0)
+                stds = np.std(X, axis=0)
 
-            skews = skew(X, axis=0)
-            kurtoses = kurtosis(X, axis=0)
-            if self.n_dim > 1:
-                covariances = np.array(cov[0, 1])
-            # y = [means2.ravel(), means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()][:n_outputs]
-            # y = [np.square(stds.ravel()), means2.ravel(), means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()][:n_outputs]
-            # if output_name == 'x^2':
-            #     y = [means2.ravel()]
-            # elif output_name == 'var':
-            #     y = [np.square(stds.ravel())]
-            y = [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel()][:n_outputs]
+                skews = skew(X, axis=0)
+                kurtoses = kurtosis(X, axis=0)
+                if self.n_dim > 1:
+                    covariances = np.array(cov[0, 1])
+                quantiles = np.quantile(X, np.arange(.1, 1, .1), axis=0).ravel()
+                output_names = [output_name]
+                # y = [means2.ravel(), means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()][:n_outputs]
+                # y = [np.square(stds.ravel()), means2.ravel(), means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()][:n_outputs]
+                if output_name == 'mean':
+                    y += [means.ravel()]
+                elif output_name == 'x^2':
+                    y += [means2.ravel()]
+                elif output_name == 'var':
+                    y += [np.square(stds.ravel())]
+                elif output_name == 'skew':
+                    y += [skews.ravel()]
+                elif output_name == "kurtosis":
+                    y += [kurtosis.ravel()]
+                elif output_name == 'quantiles_0.1':
+                    y += [quantiles[:2]]
+                elif output_name == 'quantiles_0.2':
+                    y += [quantiles[2:4]]
+                elif output_name == 'quantiles_0.3':
+                    y += [quantiles[4:6]]
+                elif output_name == 'quantiles_0.4':
+                    y += [quantiles[6:8]]
+                elif output_name == 'quantiles_0.5':
+                    y += [quantiles[8:10]]
+                elif output_name == 'quantiles_0.6':
+                    y += [quantiles[10:12]]
+                elif output_name == 'quantiles_0.7':
+                    y += [quantiles[12:14]]
+                elif output_name == 'quantiles_0.8':
+                    y += [quantiles[14:16]]
+                elif output_name == 'quantiles_0.9':
+                    y += [quantiles[16:18]]
+                elif output_name == 'cov':
+                    y += [covariances]
+                else:
+                    y += [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel(), quantiles][:n_outputs]
+            #y = [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel()][:n_outputs]
             # print('before', np.array(y).shape)
             y = np.concatenate(y).ravel()
-            # print('after', y.shape)
+            self.Xs.append(np.array(x))
             self.ys.append(y)
             # self.ys.append(np.concatenate([means2.ravel()]))  #, means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()]).ravel())
             #, means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel()]).ravel())
@@ -121,37 +155,56 @@ class BasicDeepSetSum(BasicDeepSet):
 
     
 class EnsembleNetwork(nn.Module):
-    def __init__(self, models, n_outputs=1, n_inputs=1, layers=1, device='cpu:0'):
+    def __init__(self, models, n_outputs=1, n_hidden_outputs=1, n_inputs=1, n_dist=1, layers=1, multi_input=False, device='cpu:0'):
         super(EnsembleNetwork, self).__init__()
         self.models = nn.ModuleList(models)
+        self.multi_input = multi_input
+        self.n_outputs = n_outputs
+        self.device=device
         assert n_inputs > len(models)
-
+        n_o = n_hidden_outputs if multi_input else n_outputs
         if layers == 1:
-            self.classifier = nn.Linear(n_inputs, n_outputs)
+            self.classifier = nn.Linear(n_inputs, n_o)
         else:
             output_layers = []
             for i in range(layers):
                 if i == layers - 1:
-                    output_layers.append(nn.Linear(n_inputs, n_outputs))
+                    output_layers.append(nn.Linear(n_inputs, n_o))
                 else:
                     output_layers.append(nn.Linear(n_inputs, n_inputs))
                 output_layers.append(nn.ReLU())
             # remove last non-linearity
             output_layers = output_layers[:-1]
             self.classifier = nn.Sequential(*output_layers)
+        if self.multi_input:
+            self.models_ = [[copy.deepcopy(m) for m in self.models] for i in range(n_dist)]
+            self.classifiers_ = [copy.deepcopy(self.classifier) for i in range(n_dist)]
+            self.dec = nn.Linear(n_o*n_dist, self.n_outputs)
         
     def forward(self, x, lengths=None):
-        xs = []
-        for m in self.models:
-            xs.append(m.forward(x.clone().to(device)))
-        # print(xs[0].shape)
-        x = torch.cat(xs, dim=-1)
-        # extra n_dists
-        if len(x.shape) == 3:
-            x = x.reshape((x.shape[0], -1))
-        # print(x.shape)
-        x = self.classifier(x)
+        if self.multi_input and len(x.shape) == 4 and x.shape[1] > 1:
+            multi_output = []
+            for j in range(x.shape[1]):
+                a = x[:, j, :, :].squeeze(1)
+                xs = []
+                for m in self.models_[j]:
+                    xs.append(m.forward(a.clone().to(self.device)))
+                out = torch.cat(xs, dim=-1)
+                if len(x.shape) == 3:
+                    out = out.reshape((out.shape[0], -1))
+                multi_output.append(self.classifiers_[j](out))
+            x = torch.cat(multi_output, 1)
+            x = self.dec(x)
+        else:
+            xs = []
+            for m in self.models:
+                xs.append(m.forward(x.squeeze().clone().to(self.device)))
+            x = torch.cat(xs, dim=-1)
+            if len(x.shape) == 3:
+                x = x.reshape((x.shape[0], -1))
+            x = self.classifier(x)
         return x
+
 
 
 def train_nn(model, name, optimizer, scheduler, train_generator, test_generator, classification=False, 
@@ -180,6 +233,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
         print(epoch)
         train_aux = []
         for x, y, lengths in train_generator:
+            #print(x.shape, y.shape)
             x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
             loss_elements = criterion(model(x, lengths), y)
             loss = loss_elements.mean()
@@ -188,18 +242,22 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             train_aux.append(loss.item())
             # TODO: maybe we don't want to log at every step
             if use_wandb:
-                wandb.log({"train_loss": loss.item()}, step=step)
+                wandb.log({f"{name} train loss per step": loss}, step=step)
             if len(outputs) > 1:
-                per_output_loss = loss_elements.mean(dim=0)
-                assert len(outputs) == len(per_output_loss)
+                outputs_loss = loss_elements.mean(dim=0)
+                assert len(outputs) == len(outputs_loss)
+                per_output_loss = {o: l for o, l in zip(outputs, outputs_loss)}
                 if use_wandb:
-                    for i in range(len(outputs)):
-                        wandb.log({f"{outputs[i]}": per_output_loss[i]}, step=step)
+                    wandb.log({f"{name} train loss per step, stratified": per_output_loss}, step=step)
+            else:
+                per_output_loss = {0: loss}
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             step += 1
             if step % 20 == 0:
+                losses_tr.append(per_output_loss)
+                
                 aux = []
                 accuracy = []
                 for x, y, lengths in test_generator:
@@ -214,23 +272,20 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                     aux.append(loss.item())
                 test_loss = np.nanmean(aux)
                 if use_wandb:
-                    wandb.log({"test_loss": test_loss}, step=step)
+                    wandb.log({f"{name} test loss per step": test_loss}, step=step)
                 if len(outputs) > 1:
-                    per_output_loss = loss_elements.mean(dim=0)
-                    assert len(outputs) == len(per_output_loss)
-                    # per_output_loss = {o: l for o, l in zip(outputs, outputs_loss)}
+                    outputs_loss = loss_elements.mean(dim=0)
+                    assert len(outputs) == len(outputs_loss)
+                    per_output_loss = {o: l for o, l in zip(outputs, outputs_loss)}
                     if use_wandb:
-                        for i in range(len(outputs)):
-                            wandb.log({f"{outputs[i]}": per_output_loss[i]}, step=step)
-                train_loss = train_aux[-1]
-#                 train_loss = np.nanmean(train_aux)
-#                 print(train_aux)
-                train_aux = []
-                losses_tr.append(train_loss)
-#                 print(train_loss)
+                        wandb.log({f"{name} train loss per step, stratified": per_output_loss}, step=step)
+                else:
+                     per_output_loss = {0: loss}
+                train_loss = np.nanmean(train_aux)
+                print(train_loss)
                 if not np.isnan(train_loss) and not best_loss_tr or (train_loss < best_loss_tr):
                     if use_wandb:
-                        wandb.run.summary["best_tr_loss"] = train_loss
+                        wandb.run.summary["best_loss"] = train_loss
                     best_loss_tr = train_loss
                 scheduler.step()
                 if classification:
@@ -238,12 +293,11 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                         +'test accuracy: ' + np.nanmean(accuracy))
                 else:
                     print('Train loss: '+str(train_loss)+", test loss: "+str(test_loss)) 
-                losses_ts.append(test_loss)
-                if not np.isnan(test_loss) and not best_loss_ts or (test_loss < best_loss_ts):
+                losses_ts.append(per_output_loss)
+                if not np.isnan(train_loss) and not best_loss_ts or (test_loss < best_loss_ts):
                     if use_wandb:
-                        wandb.run.summary["best_ts_loss"] = test_loss
+                        wandb.run.summary["best_loss"] = test_loss
                     best_loss_ts = test_loss
-
     return model, best_loss_tr, best_loss_ts, losses_tr, losses_ts
 
 if __name__ == "__main__":
@@ -296,6 +350,7 @@ if __name__ == "__main__":
         test = SyntheticDataset(1000, args.sample_size, args.features, args.outputs, args.output_name)
         num_workers = 1
         n_dists = 1
+        n_outputs = args.outputs
         n_final_outputs = n_outputs * args.features if n_outputs < 5 else n_outputs * args.features - 1
     train_generator = DataLoader(train,
                                     batch_size=args.batch_size,
@@ -319,7 +374,10 @@ if __name__ == "__main__":
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
 
     # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
-    output_names = list(itertools.product(['mean', 'std', 'skew', 'kurtosis', 'covariance'][:args.outputs], range(args.features)))
+    if args.output_name == 'all':
+        output_names = list(itertools.product(['mean', 'std', 'skew', 'kurtosis', 'covariance'][:args.outputs], range(args.features)))
+    else:
+        output_names = list(itertools.product([args.output_name], range(args.features)))
     # covariance only has one
     if args.outputs == 5:
         output_names = output_names[:-1]
