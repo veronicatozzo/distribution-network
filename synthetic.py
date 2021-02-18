@@ -56,7 +56,8 @@ class SyntheticDataset(Dataset):
                 y = [np.log(means.ravel())]
             elif output_name == "Ex^2":
                 y = [np.square(means.ravel())]
-            y = [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel()][:n_outputs]
+            else:
+                y = [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel()][:n_outputs]
             y = np.concatenate(y).ravel()
             self.ys.append(y)
 
