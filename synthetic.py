@@ -12,15 +12,20 @@ from src.dataset import FullLargeDataset
 
 
 class SyntheticDataset(Dataset):
-    def __init__(self, N=1000, n_samples=500, n_dim=2, n_outputs=1, output_name='x^2'):
+    def __init__(self, N=1000, n_samples=500, n_dim=2, n_outputs=1, output_name='x^2', distribution='normal'):
         self.N = N
         self.n_samples = n_samples
         self.n_dim = n_dim
         self.Xs = []
         self.ys = []
         for n in range(N):
-            cov = make_spd_matrix(self.n_dim)
-            X = np.random.multivariate_normal(np.random.randn(self.n_dim), cov, size=self.n_samples, check_valid='warn', tol=1e-8)
+            if distribution == "normal":
+                cov = make_spd_matrix(self.n_dim)
+                X = np.random.multivariate_normal(np.random.randn(self.n_dim), cov, size=self.n_samples, check_valid='warn', tol=1e-8)
+            elif distribution == "t":
+                X = np.random.standard_t(np.random.randint(1, 30, size=self.n_dim), size=(self.n_samples, self.n_dim))
+            elif distribution == "gamma":
+                X = np.random.gamma(np.random.randint(1, 30, size=self.n_dim), np.random.randint(1, 30, size=self.n_dim), size=(self.n_samples, self.n_dim))
             self.Xs.append(X)
             X2 = X**2
             means2 = np.mean(X2, axis=0)
@@ -30,20 +35,30 @@ class SyntheticDataset(Dataset):
             skews = skew(X, axis=0)
             kurtoses = kurtosis(X, axis=0)
             if self.n_dim > 1:
-                covariances = np.array(cov[0, 1])
-            # y = [means2.ravel(), means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()][:n_outputs]
-            # y = [np.square(stds.ravel()), means2.ravel(), means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()][:n_outputs]
-            # if output_name == 'x^2':
-            #     y = [means2.ravel()]
-            # elif output_name == 'var':
-            #     y = [np.square(stds.ravel())]
+                covariances = np.cov(X)[0, 1]
+                # covariances = np.array(cov[0, 1])
+            if output_name == 'x^2':
+                y = [means2.ravel()]
+            elif output_name == 'x^3':
+                means3 = np.mean(X**3, axis=0)
+            elif output_name == 'x^4':
+                means3 = np.mean(X**4, axis=0)
+                y = [means3.ravel()]
+            elif output_name == 'mean':
+                y = [means.ravel()]
+            elif output_name == 'var':
+                y = [np.square(stds.ravel())]
+            elif output_name == 'skew':
+                y = [skews.ravel()]
+            elif output_name == "kurtosis":
+                y = [kurtosis.ravel()]
+            elif output_name == "logEx":
+                y = [np.log(means.ravel())]
+            elif output_name == "Ex^2":
+                y = [np.square(means.ravel())]
             y = [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel()][:n_outputs]
-            # print('before', np.array(y).shape)
             y = np.concatenate(y).ravel()
-            # print('after', y.shape)
             self.ys.append(y)
-            # self.ys.append(np.concatenate([means2.ravel()]))  #, means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()]).ravel())
-            #, means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel()]).ravel())
 
     def __getitem__(self, index):
         return self.Xs[index], self.ys[index], np.arange(1).reshape(-1, 1)
@@ -194,7 +209,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                 assert len(outputs) == len(per_output_loss)
                 if use_wandb:
                     for i in range(len(outputs)):
-                        wandb.log({f"{outputs[i]}": per_output_loss[i]}, step=step)
+                        wandb.log({outputs[i]: per_output_loss[i]}, step=step)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -221,7 +236,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                     # per_output_loss = {o: l for o, l in zip(outputs, outputs_loss)}
                     if use_wandb:
                         for i in range(len(outputs)):
-                            wandb.log({f"{outputs[i]}": per_output_loss[i]}, step=step)
+                            wandb.log({outputs[i]: per_output_loss[i]}, step=step)
                 train_loss = train_aux[-1]
 #                 train_loss = np.nanmean(train_aux)
 #                 print(train_aux)
@@ -267,8 +282,12 @@ if __name__ == "__main__":
     parser.add_argument('-on', '--output_name', default='x^2', help='x^2|var', type=str)
     parser.add_argument('--name', type=str)
     parser.add_argument('--hematocrit', action='store_true')
+    parser.add_argument('--seed', default=0, type=int)
+    parser.add_argument('--distribution', default='normal', help='normal|gamma|t', type=str)
     args = parser.parse_args()
 
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
     if args.name:
         wandb.init(project='synthetic-moments1', name=args.name)
     else:
@@ -288,15 +307,21 @@ if __name__ == "__main__":
         Dataset = FullLargeDataset
         train = Dataset(test=False, **data_config)
         test = Dataset(test=True, **data_config)
-        num_workers = 4
+        num_workers = 32
         n_dists = 5
         n_final_outputs = args.outputs
+        output_names = ['hematocrit']
     else:
-        train = SyntheticDataset(10000, args.sample_size, args.features, args.outputs, args.output_name)
-        test = SyntheticDataset(1000, args.sample_size, args.features, args.outputs, args.output_name)
+        train = SyntheticDataset(10000, args.sample_size, args.features, args.outputs, args.output_name, args.distribution)
+        test = SyntheticDataset(1000, args.sample_size, args.features, args.outputs, args.output_name, args.distribution)
         num_workers = 1
         n_dists = 1
-        n_final_outputs = n_outputs * args.features if n_outputs < 5 else n_outputs * args.features - 1
+        n_final_outputs = args.outputs * args.features if args.outputs < 5 else args.outputs * args.features - 1
+        # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
+        output_names = list(map(str, itertools.product(['mean', 'std', 'skew', 'kurtosis', 'covariance'][:args.outputs], range(args.features))))
+        # covariance only has one
+        if args.outputs == 5:
+            output_names = output_names[:-1]
     train_generator = DataLoader(train,
                                     batch_size=args.batch_size,
                                     shuffle=True,
@@ -318,11 +343,6 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
 
-    # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
-    output_names = list(itertools.product(['mean', 'std', 'skew', 'kurtosis', 'covariance'][:args.outputs], range(args.features)))
-    # covariance only has one
-    if args.outputs == 5:
-        output_names = output_names[:-1]
     model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
                                             train_generator, test_generator, n_epochs=100,
                                             outputs=output_names, use_wandb=True)
