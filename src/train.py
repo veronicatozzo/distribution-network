@@ -23,7 +23,7 @@ from sklearn.impute import SimpleImputer
 
 #@profile
 def train_nn(model, name, optimizer, scheduler, train_generator, test_generator, classification=False, 
-             n_epochs=10, outputs=[], use_wandb=True, plot_gradients=True):
+             n_epochs=100, outputs=[], use_wandb=True, plot_gradients=True, lenghts=[]):
     if use_wandb:
         import wandb
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -60,6 +60,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             if len(outputs) > 1:
                 outputs_loss = loss_elements.mean(dim=0)
                 assert len(outputs) == len(outputs_loss)
+                per_output_loss = {o: l for o, l in zip(outputs, outputs_loss)}
                 if use_wandb:
                     wandb.log({f"{name} train loss per step, stratified": per_output_loss}, step=step)
             optimizer.zero_grad()

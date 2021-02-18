@@ -230,25 +230,23 @@ class FullLargeDataset(Dataset):
         self.outputs = []
         self.test = test
         time_ = time.time()
-        for j, o in enumerate(outputs):
-            
-            table_o = pd.read_csv(path_to_outputs+"/"+o+".csv", index_col=0)
-            if 'age' in list(table_o.columns):
-                table_ids_age = set(list(table_o.apply(lambda row : 
-                                                              str(row['mrn'])+'_'+row['date'].split(' ')[0]+'_'+str(row['age']), axis = 1)))
-                ids_age = ids_age.intersection(table_ids_age) if j != 0 else table_ids_age
-            table_ids = set(np.unique(table_o['file_id'].values).tolist())
-            # currently we do not support missing outputs
-            # a patient must have all to be considered
-            ids_ = ids_.intersection(table_ids)  if j != 0 else table_ids
-            
-            self.outputs.append(table_o)
-        print(len(table_ids), len(ids_))
-        print('Looked at all output files, time', time.time() - time_)
-        time_ = time.time()
         id_file = id_file if os.path.exists(id_file) else path_to_id_list + id_file
+       
         if (not os.path.exists(id_file)):
-           
+            for j, o in enumerate(outputs):
+                table_o = pd.read_csv(path_to_outputs+"/"+o+".csv", index_col=0)
+                if 'age' in list(table_o.columns):
+                    table_ids_age = set(list(table_o.apply(lambda row : 
+                                                                  str(row['mrn'])+'_'+row['date'].split(' ')[0]+'_'+str(row['age']), axis = 1)))
+                    ids_age = ids_age.intersection(table_ids_age) if j != 0 else table_ids_age
+                table_ids = set(np.unique(table_o['file_id'].values).tolist())
+                # currently we do not support missing outputs
+                # a patient must have all to be considered
+                ids_ = ids_.intersection(table_ids)  if j != 0 else table_ids
+
+                self.outputs.append(table_o[table_o['file_id'].isin(list(ids_))])
+            print(len(table_ids), len(ids_))
+            print('Looked at all output files, time', time.time() - time_)
             if len(ids_age) ==  len(ids_): # all outputs have age we can proceed to balance the selection
                 aux = pd.DataFrame([[i.split('_')[0], i.split('_')[1], int(i.split('_')[2])]
                                  for i in list(ids_age)], columns = ['mrn', 'date', 'age'])
@@ -265,12 +263,16 @@ class FullLargeDataset(Dataset):
             save_id_file(self.train_ids_, self.test_ids_, id_file)
         else:
             id_list_train, id_list_test = read_id_file(id_file)
+            for j, o in enumerate(outputs):
+                table_o = pd.read_csv(path_to_outputs+"/"+o+".csv", index_col=0)
+                self.outputs.append(table_o[np.logical_or(table_o['file_id'].isin(list(id_list_test)),
+                                            table_o['file_id'].isin(list(id_list_train)))])
+            print('Loaded id_file output files, time', time.time() - time_)
             id_list_train = [t.split(' ')[0] for t in id_list_train]
             id_list_test = [t.split(' ')[0] for t in id_list_test]
-            self.test_ids_ = list(set(id_list_test).intersection(ids_))
-            self.train_ids_ =  list(set(id_list_train).intersection(ids_))
+            self.test_ids_ = id_list_test
+            self.train_ids_ = id_list_train
         
-        print('Loaded id files, time:', time.time() - time_)
         time_ = time.time()
         if self.test:
             self.ids_ = self.test_ids_ if num_samples == -1 else list(np.random.choice(self.test_ids_, size=min(num_samples, len(self.test_ids_)), replace=False))
@@ -287,7 +289,7 @@ class FullLargeDataset(Dataset):
                 ss = SetStandardScaler(stream=True)
 
                 ss.fit([get_file(self.outputs[0], i, input_type)
-                        for i in self.train_ids_[:300]])
+                        for i in self.train_ids_[:min(300, len(self.ids_))]])
                 self._setstandardscaler.append(ss)
         print('Passed pre-processing, time:', time.time() - time_)
         self.num_subsamples = num_subsamples

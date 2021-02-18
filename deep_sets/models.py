@@ -19,7 +19,7 @@ class SmallDeepSet(nn.Module):
         dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_outputs))
         self.dec = nn.Sequential(*dec_layers)
 
-    def forward(self, x):
+    def forward(self, x, lengths=None): # added for compatibility
         if x.shape[1] > 1:
             encoded = []
             for j in range(x.shape[1]):
@@ -32,7 +32,7 @@ class SmallDeepSet(nn.Module):
         return x
 
 class SmallDeepSetMax(SmallDeepSet):
-    def forward(self, x):
+    def forward(self, x, lengths=None): # added for compatibility
         x = super().forward(x)
        # x = self.enc(x)
         x = torch.max(x, -2).values
@@ -40,7 +40,7 @@ class SmallDeepSetMax(SmallDeepSet):
         return x
 
 class SmallDeepSetMean(SmallDeepSet):
-    def forward(self, x):
+    def forward(self, x, lengths=None): # added for compatibility
         x = super().forward(x)
         #x = self.enc(x)
         x = x.mean(dim=-2)
@@ -48,7 +48,7 @@ class SmallDeepSetMean(SmallDeepSet):
         return x
 
 class SmallDeepSetSum(SmallDeepSet):
-    def forward(self, x):
+    def forward(self, x, lengths=None): # added for compatibility
         x = super().forward(x)
         #x = self.enc(x)
         x = x.sum(dim=-2)
@@ -60,7 +60,7 @@ class TrivialMean(nn.Module):
         super().__init__()
         self.dec = nn.Linear(in_features=2, out_features=2)
 
-    def forward(self, x):
+    def forward(self, x, lengths=None): # added for compatibility
         x = x.squeeze(1)
         x = x.mean(dim=-2)
         return self.dec(x)

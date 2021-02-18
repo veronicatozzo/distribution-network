@@ -18,6 +18,7 @@ class SyntheticDataset(Dataset):
         self.n_dim = n_dim
         self.Xs = []
         self.ys = []
+        print('Dataset output', output_name)
         for n in range(N):
             cov = make_spd_matrix(self.n_dim)
             X = np.random.multivariate_normal(np.random.randn(self.n_dim), cov, size=self.n_samples, check_valid='warn', tol=1e-8)
@@ -29,16 +30,42 @@ class SyntheticDataset(Dataset):
 
             skews = skew(X, axis=0)
             kurtoses = kurtosis(X, axis=0)
+            quantiles = np.quantile(X, np.arange(.1, 1, .1), axis=0).ravel()
+            
             if self.n_dim > 1:
-                covariances = np.array(cov[0, 1])
+                covariances = np.array(cov[0, 1]).reshape(1, 1)
             # y = [means2.ravel(), means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()][:n_outputs]
             # y = [np.square(stds.ravel()), means2.ravel(), means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()][:n_outputs]
-            # if output_name == 'x^2':
-            #     y = [means2.ravel()]
-            # elif output_name == 'var':
-            #     y = [np.square(stds.ravel())]
-            y = [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel()][:n_outputs]
-            # print('before', np.array(y).shape)
+            if output_name == 'x^2':
+                y = [means2.ravel()]
+            elif output_name == 'var':
+                y = [np.square(stds.ravel())]
+            elif output_name == 'skew':
+                y = [skews.ravel()]
+            elif output_name == "kurtosis":
+                y = [kurtoses.ravel()]
+            elif output_name == 'quantiles_0.1':
+                y = [quantiles[:2]]
+            elif output_name == 'quantiles_0.2':
+                y = [quantiles[2:4]]
+            elif output_name == 'quantiles_0.3':
+                y = [quantiles[4:6]]
+            elif output_name == 'quantiles_0.4':
+                y = [quantiles[6:8]]
+            elif output_name == 'quantiles_0.5':
+                y = [quantiles[8:10]]
+            elif output_name == 'quantiles_0.6':
+                y = [quantiles[10:12]]
+            elif output_name == 'quantiles_0.7':
+                y = [quantiles[12:14]]
+            elif output_name == 'quantiles_0.8':
+                y = [quantiles[14:16]]
+            elif output_name == 'quantiles_0.9':
+                y = [quantiles[16:18]]
+            elif output_name == 'cov':
+                y = [covariances]
+            else:
+                y = [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel(), quantiles][:n_outputs]
             y = np.concatenate(y).ravel()
             # print('after', y.shape)
             self.ys.append(y)
@@ -46,7 +73,7 @@ class SyntheticDataset(Dataset):
             #, means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel()]).ravel())
 
     def __getitem__(self, index):
-        return self.Xs[index], self.ys[index], np.arange(1).reshape(-1, 1)
+        return self.Xs[index], self.ys[index], np.arange(self.ys[index].shape[0]).reshape(-1, 1)
         
     def __len__(self):
         return self.N
@@ -124,7 +151,7 @@ class EnsembleNetwork(nn.Module):
     def __init__(self, models, n_outputs=1, n_inputs=1, layers=1, device='cpu:0'):
         super(EnsembleNetwork, self).__init__()
         self.models = nn.ModuleList(models)
-        assert n_inputs > len(models)
+        assert n_inputs >= len(models)
 
         if layers == 1:
             self.classifier = nn.Linear(n_inputs, n_outputs)
@@ -180,6 +207,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
         print(epoch)
         train_aux = []
         for x, y, lengths in train_generator:
+            print(x.shape, y.shape)
             x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
             loss_elements = criterion(model(x, lengths), y)
             loss = loss_elements.mean()
@@ -296,6 +324,7 @@ if __name__ == "__main__":
         test = SyntheticDataset(1000, args.sample_size, args.features, args.outputs, args.output_name)
         num_workers = 1
         n_dists = 1
+        n_outputs = args.outputs
         n_final_outputs = n_outputs * args.features if n_outputs < 5 else n_outputs * args.features - 1
     train_generator = DataLoader(train,
                                     batch_size=args.batch_size,
@@ -319,10 +348,14 @@ if __name__ == "__main__":
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
 
     # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
-    output_names = list(itertools.product(['mean', 'std', 'skew', 'kurtosis', 'covariance'][:args.outputs], range(args.features)))
-    # covariance only has one
+    if args.output_name == 'all':
+        output_names = list(itertools.product(['mean', 'std', 'skew', 'kurtosis', 'covariance'][:args.outputs], range(args.features)))
+    else:
+        output_names = list(itertools.product([args.output_name], range(args.features)))
+      # covariance only has one
     if args.outputs == 5:
         output_names = output_names[:-1]
+    output_names = ['kurtoses']
     model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
                                             train_generator, test_generator, n_epochs=100,
                                             outputs=output_names, use_wandb=True)

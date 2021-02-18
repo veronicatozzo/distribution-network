@@ -50,8 +50,6 @@ parser.add_argument('--n_enc_layers', type=int, default=2)
 parser.add_argument('--n_hidden_units', type=int, default=64)
 parser.add_argument('--ln', dest='ln', action='store_true', help='whether to use layer norm')
 parser.add_argument('--plot_gradients', dest='plot_gradients', action='store_true', help='whether plot gradients')
-parser.add_argument('--bn', dest='bn', action='store_true', help='whether to use batch norm')
-parser.add_argument('--standardize_features', dest='standardize_features', action='store_true', help='whether standardize features')
 
 # KNN Divergence hyperparameters
 parser.add_argument('--k', type=int, default=5)
@@ -87,9 +85,9 @@ if __name__ == "__main__":
         name = '_'.join([args.model, str(args.lr), str(args.n_enc_layers), str(args.n_hidden_units), str(args.ln)])
     # wandb.init(project="distribution-regression", name=name)
     # wandb.init(project="blood-distribution", name=name)
-    #wandb.init(project="deep-samples1", name=name)
-#     wandb.init(project="deep-samples_ln_vero", name=name)
-    wandb.init(project="set_transformers", name=name)
+    #wandb.init(project="deep-samples_ln_vero", name=name)
+    wandb.init(project="moments", name=name)
+   # wandb.init(project="set_transformers", name=name)
 #     wandb.config.update(args)
 
     if args.id_file:
@@ -200,8 +198,6 @@ if __name__ == "__main__":
             'n_enc_layers': args.n_enc_layers,
             'n_hidden_units': args.n_hidden_units,
             'ln':args.ln,
-            'bn':args.bn,
-            'standardize_features':args.standardize_features,
             'device': device}
         model = model_dict[args.model](**model_params)
         optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)

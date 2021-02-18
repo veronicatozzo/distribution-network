@@ -1,33 +1,33 @@
 program: synthetic.py
 method: grid
-project: synthetic-moments1
+project: synthetic-moments2
 metric:
     name: test_loss
     goal: minimize
 parameters:
     learning_rate:
-        values: [.001] # [.1, .01, .001, .0001]
+        values:[.1, .01, .001, .0001]
     batch_size:
         values: [64]
     enc_layers:
-        values: [2, 3, 4]
+        values: [1, 2, 3, 4]
     dec_layers:
-        values: [1, 2, 3]
+        values: [1, 2, 3, 4]
     output_layers:
-        values: [1, 2, 3]
+        values: [1] #, 2, 3]
     hidden_units:
-        values: [64, 128] # , 256]
+        values: [64, 128, 256]
     step_size:
         values: [60]
     gamma:
         values: [.1] #, .5, .9]
     sample_size:
-        values: [1000]  #, 1000]
+        values: [ 1000]
     features:
         values: [2]
     outputs:
-        values: [5]
+        values: [1]
     output_multiplier:
-        values: [1, 2, 4]
-    # output_name:
-    #     values: ["var"]
+        values: [1]
+    output_name:
+         values: ["kurtosis", "skew", "cov", "quantiles_0.1", "quantiles_0.2", "quantiles_0.3", "quantiles_0.4", "quantiles_0.5", "quantiles_0.6", "quantiles_0.7", "quantiles_0.8","quantiles_0.9"]

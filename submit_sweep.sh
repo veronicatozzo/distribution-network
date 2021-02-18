@@ -8,4 +8,6 @@
 
 module load cuda-10.2
 
-srun $(wandb agent lily/synthetic-moments1/7pvcq63x; wandb agent lily/synthetic-moments1/7pvcq63x; wandb agent lily/synthetic-moments1/7pvcq63x; wandb agent lily/synthetic-moments1/7pvcq63x; wandb agent lily/synthetic-moments1/7pvcq63x; wandb agent lily/synthetic-moments1/7pvcq63x; wandb agent lily/synthetic-moments1/7pvcq63x; wandb agent lily/synthetic-moments1/7pvcq63x; wandb agent lily/synthetic-moments1/7pvcq63x)
+#srun $(wandb agent lily/synthetic-moments1/7pvcq63x; wandb agent lily/synthetic-moments1/7pvcq63x; wandb agent lily/synthetic-moments1/7pvcq63x; wandb agent lily/synthetic-moments1/7pvcq63x; wandb agent lily/synthetic-moments1/7pvcq63x; wandb agent lily/synthetic-moments1/7pvcq63x; wandb agent lily/synthetic-moments1/7pvcq63x; wandb agent lily/synthetic-moments1/7pvcq63x; wandb agent lily/synthetic-moments1/7pvcq63x)
+srun $(wandb agent lily/synthetic-moments1/gkhjbz5u)
+

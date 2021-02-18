@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch
 
-from set_transformer.modules import SAB, PMA, MB
+from set_transformer.modules import SAB, PMA, MB, MB_norm
 
 class SmallSetTransformer(nn.Module):
     def __init__(self, n_outputs=1, n_inputs=1, n_enc_layers=2, n_hidden_units=64, n_dec_layers=2, **kwargs):
@@ -41,7 +41,7 @@ class SmallDeepSamples(nn.Module):
                 ln=False, device='cuda:0', bn=False, standardize_features=False, **kwargs):
         super().__init__()
         self.enc_layers = []
-        self.enc_layers.append(MB(n_feats=2, hidden_size=n_hidden_units, first_layer=True, ln=ln))
+        self.enc_layers.append(MB_norm(n_feats=2, hidden_size=n_hidden_units, first_layer=True, ln=ln))
         for i in range(n_enc_layers - 1):
             self.enc_layers.append(MB(n_feats=2, hidden_size=n_hidden_units, ln=ln, bn=bn))
         self.enc_layers = nn.ModuleList(self.enc_layers)
