@@ -25,11 +25,8 @@ class MAB(nn.Module):
     def forward(self, Q, K):
         Q = self.fc_q(Q)
         K, V = self.fc_k(K), self.fc_v(K)
-        print(self.dim_V)
-        print(self.num_heads)
         dim_split = self.dim_V // self.num_heads
         dim_split = 2**int(round(np.log2(dim_split),0))
-        print(dim_split)
         Q_ = torch.cat(Q.split(dim_split, 2), 0)
         K_ = torch.cat(K.split(dim_split, 2), 0)
         V_ = torch.cat(V.split(dim_split, 2), 0)
