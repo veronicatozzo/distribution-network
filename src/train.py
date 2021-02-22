@@ -48,6 +48,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
         print(epoch)
         train_aux = []
         for x, y, lengths in train_generator:
+            #print(x.shape, y.shape)
             x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
             loss_elements = criterion(model(x, lengths), y)
             loss = loss_elements.mean()
@@ -63,11 +64,15 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                 per_output_loss = {o: l for o, l in zip(outputs, outputs_loss)}
                 if use_wandb:
                     wandb.log({f"{name} train loss per step, stratified": per_output_loss}, step=step)
+            else:
+                per_output_loss = {0: loss}
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             step += 1
             if step % 20 == 0:
+                losses_tr.append(per_output_loss)
+                
                 aux = []
                 accuracy = []
                 for x, y, lengths in test_generator:
@@ -89,8 +94,9 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                     per_output_loss = {o: l for o, l in zip(outputs, outputs_loss)}
                     if use_wandb:
                         wandb.log({f"{name} train loss per step, stratified": per_output_loss}, step=step)
+                else:
+                     per_output_loss = {0: loss}
                 train_loss = np.nanmean(train_aux)
-                losses_tr.append(train_loss)
                 print(train_loss)
                 if not np.isnan(train_loss) and not best_loss_tr or (train_loss < best_loss_tr):
                     if use_wandb:
@@ -102,12 +108,12 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                         +'test accuracy: ' + np.nanmean(accuracy))
                 else:
                     print('Train loss: '+str(train_loss)+", test loss: "+str(test_loss)) 
-                losses_ts.append(test_loss)
+                losses_ts.append(per_output_loss)
                 if not np.isnan(train_loss) and not best_loss_ts or (test_loss < best_loss_ts):
                     if use_wandb:
                         wandb.run.summary["best_loss"] = test_loss
                     best_loss_ts = test_loss
-    return model, best_loss_tr, best_loss_ts
+    return model, best_loss_tr, best_loss_ts, losses_tr, losses_ts
 
 
 
@@ -233,8 +239,8 @@ def get_moments(X):
     stds = np.array([np.std(x, axis=1) for x in X]).reshape(len(X), -1)
     skews = np.array([skew(x, axis=1) for x in X]).reshape(len(X), -1)
     kurtoses = np.array([kurtosis(x, axis=1) for x in X]).reshape(len(X), -1)
-    covariances = np.array([np.cov(samples, rowvar=False)[0][1] for dist in X for samples in dist]).reshape(len(X), -1)
-    return np.concatenate([means, stds, skews, kurtoses, covariances], axis=1)
+  #  covariances = np.array([np.cov(samples, rowvar=False)[0][1] for dist in X for samples in dist]).reshape(len(X), -1)
+    return np.concatenate([means, stds, skews, kurtoses], axis=1) #, covariances
 
 def plot_feature_importance(model, feature_names, name):
     import matplotlib.pyplot as plt
