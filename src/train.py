@@ -61,9 +61,10 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             if len(outputs) > 1:
                 outputs_loss = loss_elements.mean(dim=0)
                 assert len(outputs) == len(outputs_loss)
-                per_output_loss = {o: l for o, l in zip(outputs, outputs_loss)}
+                per_output_loss = outputs_loss
                 if use_wandb:
-                    wandb.log({f"{name} train loss per step, stratified": per_output_loss}, step=step)
+                    for i in range(len(outputs)):
+                        wandb.log({outputs[i]: per_output_loss[i]}, step=step)
             else:
                 per_output_loss = {0: loss}
             optimizer.zero_grad()
@@ -91,11 +92,10 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                 if len(outputs) > 1:
                     outputs_loss = loss_elements.mean(dim=0)
                     assert len(outputs) == len(outputs_loss)
-                    per_output_loss = {o: l for o, l in zip(outputs, outputs_loss)}
+                    per_output_loss = outputs_loss
                     if use_wandb:
-                        wandb.log({f"{name} train loss per step, stratified": per_output_loss}, step=step)
-                else:
-                     per_output_loss = {0: loss}
+                        for i in range(len(outputs)):
+                            wandb.log({outputs[i]: per_output_loss[i]}, step=step)
                 train_loss = np.nanmean(train_aux)
                 print(train_loss)
                 if not np.isnan(train_loss) and not best_loss_tr or (train_loss < best_loss_tr):

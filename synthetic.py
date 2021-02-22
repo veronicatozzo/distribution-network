@@ -277,11 +277,11 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             train_aux.append(loss.item())
             # TODO: maybe we don't want to log at every step
             if use_wandb:
-                wandb.log({f"{name} train loss per step": loss.detach().cpu().numpy()}, step=step)
+                wandb.log({f"{name} train loss per step": loss.item()}, step=step)
             if len(outputs) > 1:
                 outputs_loss = loss_elements.mean(dim=0)
                 assert len(outputs) == len(outputs_loss)
-                per_output_loss = loss_elements
+                per_output_loss = outputs_loss
                 if use_wandb:
                     for i in range(len(outputs)):
                         wandb.log({outputs[i]: per_output_loss[i]}, step=step)
@@ -306,11 +306,11 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                     aux.append(loss.item())
                 test_loss = np.nanmean(aux)
                 if use_wandb:
-                    wandb.log({f"{name} test loss per step": test_loss.detach().cpu().numpy()}, step=step)
+                    wandb.log({f"{name} test loss per step": test_loss.item()}, step=step)
                 if len(outputs) > 1:
                     outputs_loss = loss_elements.mean(dim=0)
                     assert len(outputs) == len(outputs_loss)
-                    per_output_loss = loss_elements
+                    per_output_loss = outputs_loss
                     if use_wandb:
                         for i in range(len(outputs)):
                             wandb.log({outputs[i]: per_output_loss[i]}, step=step)
