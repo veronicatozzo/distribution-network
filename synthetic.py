@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 import itertools
 import torch.nn.functional as F
+from set_transformer.models import SmallSetTransformer
 import torch.nn as nn
 import torch
 
@@ -23,7 +24,7 @@ class SyntheticDataset(Dataset):
                 cov = make_spd_matrix(self.n_dim)
                 X = np.random.multivariate_normal(np.random.randn(self.n_dim), cov, size=self.n_samples, check_valid='warn', tol=1e-8)
             elif distribution == "t":
-                X = np.random.standard_t(np.random.randint(1, 30, size=self.n_dim), size=(self.n_samples, self.n_dim))
+                X = np.random.standard_t(np.random.randint(10, 20, size=self.n_dim), size=(self.n_samples, self.n_dim))
             elif distribution == "gamma":
                 X = np.random.gamma(np.random.randint(1, 30, size=self.n_dim), np.random.randint(1, 30, size=self.n_dim), size=(self.n_samples, self.n_dim))
             self.Xs.append(X)
@@ -31,6 +32,7 @@ class SyntheticDataset(Dataset):
             means2 = np.mean(X2, axis=0)
             means = np.mean(X, axis=0)
             stds = np.std(X, axis=0)
+            medians = np.median(X, axis=0)
 
             skews = skew(X, axis=0)
             kurtoses = kurtosis(X, axis=0)
@@ -41,9 +43,10 @@ class SyntheticDataset(Dataset):
                 y = [means2.ravel()]
             elif output_name == 'x^3':
                 means3 = np.mean(X**3, axis=0)
-            elif output_name == 'x^4':
-                means3 = np.mean(X**4, axis=0)
                 y = [means3.ravel()]
+            elif output_name == 'x^4':
+                means4 = np.mean(X**4, axis=0)
+                y = [means4.ravel()]
             elif output_name == 'mean':
                 y = [means.ravel()]
             elif output_name == 'var':
@@ -57,7 +60,8 @@ class SyntheticDataset(Dataset):
             elif output_name == "Ex^2":
                 y = [np.square(means.ravel())]
             else:
-                y = [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel()][:n_outputs]
+                y = [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), medians.ravel(), covariances.ravel()][:n_outputs]
+
             y = np.concatenate(y).ravel()
             self.ys.append(y)
 
@@ -280,11 +284,12 @@ if __name__ == "__main__":
     # greater than 1 currently doesn't work
     parser.add_argument('-o', '--outputs', default=1, type=int)  # total outputs will be outputs * features
     parser.add_argument('-om', '--output_multiplier', default=1, type=int)  # total features before linear layer will be outputs * features * om
-    parser.add_argument('-on', '--output_name', default='x^2', help='x^2|var', type=str)
+    parser.add_argument('-on', '--output_name', default='', help='x^2|var', type=str)
     parser.add_argument('--name', type=str)
     parser.add_argument('--hematocrit', action='store_true')
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--distribution', default='normal', help='normal|gamma|t', type=str)
+    parser.add_argument('-t', '--transformer', action='store_true')
     args = parser.parse_args()
 
     np.random.seed(args.seed)
@@ -319,9 +324,9 @@ if __name__ == "__main__":
         n_dists = 1
         n_final_outputs = args.outputs * args.features if args.outputs < 5 else args.outputs * args.features - 1
         # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
-        output_names = list(map(str, itertools.product(['mean', 'std', 'skew', 'kurtosis', 'covariance'][:args.outputs], range(args.features))))
+        output_names = list(map(str, itertools.product(['mean', 'std', 'skew', 'kurtosis', 'median', 'covariance'][:args.outputs], range(args.features))))
         # covariance only has one
-        if args.outputs == 5:
+        if args.outputs > 5:
             output_names = output_names[:-1]
     train_generator = DataLoader(train,
                                     batch_size=args.batch_size,
@@ -339,7 +344,11 @@ if __name__ == "__main__":
     n_outputs = args.outputs
     num_models = n_outputs * args.output_multiplier
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = EnsembleNetwork([BasicDeepSetMean(n_inputs=args.features, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers).to(device) 
+    if args.transformer:
+        model_unit = SmallSetTransformer
+    else:
+        model_unit = BasicDeepSetMean
+    model = EnsembleNetwork([model_unit(n_inputs=args.features, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers).to(device) 
                             for i in range(num_models)], n_outputs=n_final_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
