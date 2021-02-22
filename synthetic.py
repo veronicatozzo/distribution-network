@@ -277,11 +277,11 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             train_aux.append(loss.item())
             # TODO: maybe we don't want to log at every step
             if use_wandb:
-                wandb.log({f"{name} train loss per step": loss}, step=step)
+                wandb.log({f"{name} train loss per step": loss.detach().cpu().numpy()}, step=step)
             if len(outputs) > 1:
                 outputs_loss = loss_elements.mean(dim=0)
                 assert len(outputs) == len(outputs_loss)
-                per_output_loss = {o: l for o, l in zip(outputs, outputs_loss)}
+                per_output_loss = loss_elements
                 if use_wandb:
                     for i in range(len(outputs)):
                         wandb.log({outputs[i]: per_output_loss[i]}, step=step)
@@ -306,11 +306,11 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                     aux.append(loss.item())
                 test_loss = np.nanmean(aux)
                 if use_wandb:
-                    wandb.log({f"{name} test loss per step": test_loss}, step=step)
+                    wandb.log({f"{name} test loss per step": test_loss.detach().cpu().numpy()}, step=step)
                 if len(outputs) > 1:
                     outputs_loss = loss_elements.mean(dim=0)
                     assert len(outputs) == len(outputs_loss)
-                    per_output_loss = {o: l for o, l in zip(outputs, outputs_loss)}
+                    per_output_loss = loss_elements
                     if use_wandb:
                         for i in range(len(outputs)):
                             wandb.log({outputs[i]: per_output_loss[i]}, step=step)
@@ -432,9 +432,9 @@ if __name__ == "__main__":
 
     # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
     if args.output_name == 'all':
-        output_names = list(itertools.product(['mean', 'std', 'skew', 'kurtosis', 'covariance'][:args.outputs], range(args.features)))
+        output_names = list(map(str, itertools.product(['mean', 'std', 'skew', 'kurtosis', 'median', 'covariance'][:args.outputs], range(args.features))))
     else:
-        output_names = list(itertools.product([args.output_name], range(args.features)))
+        output_names = list(map(str, itertools.product([args.output_name], range(args.features))))
     # covariance only has one
     if args.outputs == 5:
         output_names = output_names[:-1]
