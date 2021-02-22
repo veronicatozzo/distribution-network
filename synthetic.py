@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 import itertools
 import torch.nn.functional as F
+from set_transformer.models import SmallSetTransformer
 import torch.nn as nn
 import torch
 import copy
@@ -60,6 +61,7 @@ class SyntheticDataset(Dataset):
             means2 = np.mean(X2, axis=0)
             means = np.mean(X, axis=0)
             stds = np.std(X, axis=0)
+            medians = np.median(X, axis=0)
 
             skews = skew(X, axis=0)
             kurtoses = kurtosis(X, axis=0)
@@ -75,6 +77,12 @@ class SyntheticDataset(Dataset):
                 y += [means.ravel()]
             elif output_name == 'x^2':
                 y += [means2.ravel()]
+            elif output_name == 'x^3':
+                means3 = np.mean(X**3, axis=0)
+                y = [means3.ravel()]
+            elif output_name == 'x^4':
+                means4 = np.mean(X**4, axis=0)
+                y = [means4.ravel()]
             elif output_name == 'var':
                 y += [np.square(stds.ravel())]
             elif output_name == 'skew':
@@ -102,7 +110,8 @@ class SyntheticDataset(Dataset):
             elif output_name == 'cov':
                 y += [covariances]
             else:
-                y += [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel(), quantiles][:n_outputs]
+                y += [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), medians.ravel(), covariances.ravel()][:n_outputs]
+                # y += [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel(), quantiles][:n_outputs]
             #y = [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel()][:n_outputs]
             y = np.concatenate(y).ravel()
             self.ys.append(y)
@@ -269,11 +278,11 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             train_aux.append(loss.item())
             # TODO: maybe we don't want to log at every step
             if use_wandb:
-                wandb.log({f"{name} train loss per step": loss}, step=step)
+                wandb.log({f"{name} train loss per step": loss.item()}, step=step)
             if len(outputs) > 1:
                 outputs_loss = loss_elements.mean(dim=0)
                 assert len(outputs) == len(outputs_loss)
-                per_output_loss = {o: l for o, l in zip(outputs, outputs_loss)}
+                per_output_loss = outputs_loss
                 if use_wandb:
                     for i in range(len(outputs)):
                         wandb.log({outputs[i]: per_output_loss[i]}, step=step)
@@ -299,11 +308,11 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                     aux.append(loss.item())
                 test_loss = np.nanmean(aux)
                 if use_wandb:
-                    wandb.log({f"{name} test loss per step": test_loss}, step=step)
+                    wandb.log({f"{name} test loss per step": test_loss.item()}, step=step)
                 if len(outputs) > 1:
                     outputs_loss = loss_elements.mean(dim=0)
                     assert len(outputs) == len(outputs_loss)
-                    per_output_loss = {o: l for o, l in zip(outputs, outputs_loss)}
+                    per_output_loss = outputs_loss
                     if use_wandb:
                         for i in range(len(outputs)):
                             wandb.log({outputs[i]: per_output_loss[i]}, step=step)
@@ -349,12 +358,13 @@ if __name__ == "__main__":
     # greater than 1 currently doesn't work
     parser.add_argument('-o', '--outputs', default=1, type=int)  # total outputs will be outputs * features
     parser.add_argument('-om', '--output_multiplier', default=1, type=int)  # total features before linear layer will be outputs * features * om
-    parser.add_argument('-on', '--output_name', default='x^2', help='x^2|var', type=str)
+    parser.add_argument('-on', '--output_name', default='', help='x^2|var', type=str)
     parser.add_argument('--name', type=str)
     parser.add_argument('--hematocrit', action='store_true')
     parser.add_argument('--plot', action='store_true')
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--distribution', default='normal', help='normal|gamma|t', type=str)
+    parser.add_argument('-t', '--transformer', action='store_true')
     parser.add_argument('--path', default='distribution_plots/', type=str)
     args = parser.parse_args()
 
@@ -391,10 +401,9 @@ if __name__ == "__main__":
         n_outputs = args.outputs
         n_final_outputs = n_outputs * args.features if n_outputs < 5 else n_outputs * args.features - 1
         # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
-        output_names = list(map(str, itertools.product(['mean', 'std', 'skew', 'kurtosis', 'covariance'][:args.outputs], range(args.features))))
-        
+        output_names = list(map(str, itertools.product(['mean', 'std', 'skew', 'kurtosis', 'median', 'covariance'][:args.outputs], range(args.features))))
         # covariance only has one
-        if args.outputs == 5:
+        if args.outputs > 5:
             output_names = output_names[:-1]
         if args.plot:
             os.makedirs(args.path, exist_ok=True)
@@ -416,16 +425,20 @@ if __name__ == "__main__":
     n_outputs = args.outputs
     num_models = n_outputs * args.output_multiplier
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = EnsembleNetwork([BasicDeepSetMean(n_inputs=args.features, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers).to(device) 
+    if args.transformer:
+        model_unit = SmallSetTransformer
+    else:
+        model_unit = BasicDeepSetMean
+    model = EnsembleNetwork([model_unit(n_inputs=args.features, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers).to(device) 
                             for i in range(num_models)], n_outputs=n_final_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
 
     # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
     if args.output_name == 'all':
-        output_names = list(itertools.product(['mean', 'std', 'skew', 'kurtosis', 'covariance'][:args.outputs], range(args.features)))
+        output_names = list(map(str, itertools.product(['mean', 'std', 'skew', 'kurtosis', 'median', 'covariance'][:args.outputs], range(args.features))))
     else:
-        output_names = list(itertools.product([args.output_name], range(args.features)))
+        output_names = list(map(str, itertools.product([args.output_name], range(args.features))))
     # covariance only has one
     if args.outputs == 5:
         output_names = output_names[:-1]

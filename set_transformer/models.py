@@ -20,7 +20,7 @@ class SmallSetTransformer(nn.Module):
         self.dec = nn.Sequential(*dec_layers)
 
     def forward(self, x, lengths=None): # added for compatibility
-        if x.shape[1] > 1:
+        if len(x.shape) == 4 and x.shape[1] > 1:
             encoded = []
             for j in range(x.shape[1]):
                 a = x[:, j, :, :].squeeze(1)
@@ -29,11 +29,13 @@ class SmallSetTransformer(nn.Module):
             x = torch.cat(encoded, 1)
         else:
             x = x.squeeze(1)
-            print(x.shape)
+            # print(x.shape)
             x = self.enc(x)
         x = self.dec(x)
         # TODO: change squeeze(1) for multiple inputs
-        return x.squeeze(-1).squeeze(1)
+        x = x.squeeze(-1).squeeze(1)
+        # NOTE: added from original to reduce samples dim
+        return x.mean(dim=-2)
 
 
 class SmallDeepSamples(nn.Module):
