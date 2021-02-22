@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 import itertools
 import torch.nn.functional as F
-from set_transformer.models import SmallSetTransformer
+from set_transformer.models import SmallSetTransformer, SmallDeepSamples
 import torch.nn as nn
 import torch
 import copy
@@ -272,12 +272,12 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
             loss_elements = criterion(model(x, lengths), y)
             loss = loss_elements.mean()
-            if np.isnan(loss.item()):
+            if np.isnan(loss.detach().cpu().numpy()):
                 raise ValueError("Train loss is nan: ", loss)
-            train_aux.append(loss.item())
+            train_aux.append(loss.detach().cpu().numpy())
             # TODO: maybe we don't want to log at every step
             if use_wandb:
-                wandb.log({f"{name} train loss per step": loss.item()}, step=step)
+                wandb.log({f"{name} train loss per step": loss}, step=step)
             if len(outputs) > 1:
                 outputs_loss = loss_elements.mean(dim=0)
                 assert len(outputs) == len(outputs_loss)
@@ -290,7 +290,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             optimizer.step()
             step += 1
             if step % 20 == 0:
-                losses_tr.append(per_output_loss)
+                losses_tr.append(per_output_loss.detach().cpu().numpy())
                 
                 aux = []
                 accuracy = []
@@ -298,15 +298,15 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                     x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
                     loss_elements = criterion(model(x, lengths), y)
                     loss = loss_elements.mean()
-                    if np.isnan(loss.item()):
+                    if np.isnan(loss.detach().cpu().numpy()):
                         raise ValueError("Test loss is nan: ", loss)
                     if classification:
                         accuracy.append(accuracy_score(model(x, lengths).detach().cpu().numpy(),
                                                        y.detach().cpu().numpy().astype(np.int8)))
-                    aux.append(loss.item())
+                    aux.append(loss.detach().cpu().numpy())
                 test_loss = np.nanmean(aux)
                 if use_wandb:
-                    wandb.log({f"{name} test loss per step": test_loss.item()}, step=step)
+                    wandb.log({f"{name} test loss per step": test_loss}, step=step)
                 if len(outputs) > 1:
                     outputs_loss = loss_elements.mean(dim=0)
                     assert len(outputs) == len(outputs_loss)
@@ -322,7 +322,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
 #                 print(train_loss)
                 if not np.isnan(train_loss) and not best_loss_tr or (train_loss < best_loss_tr):
                     if use_wandb:
-                        wandb.run.summary["best_loss"] = train_loss
+                        wandb.run.summary["best_tr_loss"] = train_loss
                     best_loss_tr = train_loss
                 scheduler.step()
                 if classification:
@@ -330,7 +330,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                         +'test accuracy: ' + np.nanmean(accuracy))
                 else:
                     print('Train loss: '+str(train_loss)+", test loss: "+str(test_loss)) 
-                losses_ts.append(per_output_loss)
+                losses_ts.append(per_output_loss.detach().cpu().numpy())
                 if not np.isnan(train_loss) and not best_loss_ts or (test_loss < best_loss_ts):
                     if use_wandb:
                         wandb.run.summary["best_loss"] = test_loss
@@ -361,7 +361,7 @@ if __name__ == "__main__":
     parser.add_argument('--plot', action='store_true')
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--distribution', default='normal', help='normal|gamma|t', type=str)
-    parser.add_argument('-t', '--transformer', action='store_true')
+    parser.add_argument('-m', '--model', default='deepsets', type=str, help='deepsets|settransformer|deepsamples')
     parser.add_argument('--path', default='distribution_plots/', type=str)
     args = parser.parse_args()
 
@@ -421,11 +421,18 @@ if __name__ == "__main__":
     n_outputs = args.outputs
     num_models = n_outputs * args.output_multiplier
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    if args.transformer:
+    if args.model == 'settransformer':
         model_unit = SmallSetTransformer
+        n_inputs = args.features
+    elif args.model == 'deepsamples':
+        model_unit = SmallDeepSamples
+        # n_inputs for deepsamples should actually be n_dists
+        # we code in this way to maintain compatibility with main.py
+        n_inputs = 1
     else:
         model_unit = BasicDeepSetMean
-    model = EnsembleNetwork([model_unit(n_inputs=args.features, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers).to(device) 
+        n_inputs = args.features
+    model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers).to(device) 
                             for i in range(num_models)], n_outputs=n_final_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
@@ -433,6 +440,8 @@ if __name__ == "__main__":
     # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
     if args.output_name == 'all':
         output_names = list(map(str, itertools.product(['mean', 'std', 'skew', 'kurtosis', 'median', 'covariance'][:args.outputs], range(args.features))))
+        if args.outputs > 5:
+            output_names = output_names[:-1]
     else:
         output_names = list(map(str, itertools.product([args.output_name], range(args.features))))
     # covariance only has one
