@@ -51,12 +51,17 @@ class SmallDeepSamples(nn.Module):
         self.device = device
         self.standardize_features = standardize_features
 
-    def forward(self, x, lengths):
+    def forward(self, x, lengths=None):
         """ lengths: [batch, n_dists] """
+        # add n_dists dim if it doesn't exist
+        if len(x.shape) == 3:
+            x = x.unsqueeze(1)
         batch, n_dists, n_samples, n_feats = x.shape
         out = x
         for layer in self.enc_layers:
             out = layer(x, out)
+        if type(lengths) == type(None):
+            lengths = x.shape[2] * torch.ones((x.shape[0], x.shape[1])).to(self.device)
         # [batch, n_dists, n_samples]
         length_mask = torch.arange(n_samples).expand(lengths.shape[0], lengths.shape[1], n_samples).to(self.device) < lengths.unsqueeze(-1)
         out = (out * length_mask.unsqueeze(-1)).sum(dim=-2) / length_mask.sum(dim=-1).unsqueeze(-1)

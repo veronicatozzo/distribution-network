@@ -22,7 +22,7 @@ parameters:
     gamma:
         values: [.1] #, .5, .9]
     sample_size:
-        values: [1000]  #, 1000]
+        values: [100]  #, 1000]
     features:
         values: [2]
     outputs:
@@ -32,4 +32,7 @@ parameters:
     output_name:
         values: ["mean", "var", "kurtosis", "skew", "cov",  "quantiles_0.2", "quantiles_0.5"]
     distribution:
-        values: ["normal", "t", "gamma"]       
+        values: ["normal", "t", "gamma"]
+    model:
+        values: ['settransformer']       
+
