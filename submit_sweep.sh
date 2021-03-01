@@ -8,5 +8,7 @@
 
 module load cuda-10.2
 
-srun $(wandb agent lily/synthetic-moments2/axxgct6p)
 
+#srun $(wandb agent lily/synthetic-moments2/dwpwwy7k)
+#srun $(wandb agent lily/synthetic-moments2/abrpwreg)
+srun $(wandb agent lily/synthetic-moments2/qm63kkk9; wandb agent lily/synthetic-moments2/ym7d50gr; wandb agent lily/synthetic-moments2/mef598se)

@@ -454,4 +454,4 @@ if __name__ == "__main__":
     output_names = ['kurtoses']
     model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
                                             train_generator, test_generator, n_epochs=100,
-                                            outputs=output_names, use_wandb=True)
+                                            outputs=output_names, use_wandb=True, plot_gradients=False)
