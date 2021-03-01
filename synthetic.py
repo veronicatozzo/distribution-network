@@ -300,7 +300,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
     print(device)
     print(classification)
     model = model.to(device)
-    if use_wandb:
+    if use_wandb and plot_gradients:
         wandb.watch(model, log='all')
     # by default, reduction = mean when multiple outputs
     #criterion = nn.MSELoss() 
