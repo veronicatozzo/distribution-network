@@ -13,6 +13,8 @@ import torch
 import copy
 import matplotlib.pyplot as plt 
 import os
+from scipy.special import logsumexp
+import math
 
 
 #from .src.dataset import FullLargeDataset
@@ -28,12 +30,56 @@ def plot_moments_distribution(train, outputs_names, path=''):
         ax[1].hist(aux_y)
         ax[0].grid()
         ax[1].grid()
-        ax[0].set_title(outputs_names[i]+' of x axis, Baseline MSE: '+str(mean_squared_error(aux_x, np.ones(1000)*np.mean(aux_x))))
-        ax[1].set_title(outputs_names[i]+' of y axis, Baseline MSE: '+str(mean_squared_error(aux_y, np.ones(1000)*np.mean(aux_y))))
+        ax[0].set_title(outputs_names[i]+' of x axis, Baseline MSE: '+str(mean_squared_error(aux_x, np.ones(10000)*np.mean(aux_x))))
+        ax[1].set_title(outputs_names[i]+' of y axis, Baseline MSE: '+str(mean_squared_error(aux_y, np.ones(10000)*np.mean(aux_y))))
         ax[0].axvline(np.mean(aux_x), color='red')
         ax[1].axvline(np.mean(aux_y), color='red')
         plt.tight_layout()
         plt.savefig(path+outputs_names[i]+'.png', dpi=200, bbox_inches='tight')
+
+def get_moment(samples, name):
+    if name == 'covariance':
+        return empirical_covariance(samples)[0, 1]
+    elif name == 'var':
+        return np.square(np.std(samples, axis=0))
+    else:
+        raise ValueError("unknown name: {}".format(name))
+
+def plot_2d_moments_dist_and_func(train, output_names, path=''):
+    """ Plot distribution and function
+
+    dist: (x,y,z) is 2d histogram of moments
+    func: (x,y,z) is 2d function of moments 
+    """
+    print('in func')
+    assert len(output_names) == 3
+    # X_tr, y_tr, lengths = zip(*[train[i] for i in range(len(train))])
+    # xs = get_moment(X_tr, output_names[0])
+    # ys = get_moment(X_tr, output_names[1])
+    # zs = y_tr
+    xs = []
+    ys = []
+    zs = []
+    for el in train:
+        samples, labels, lengths = el
+        xs.append(get_moment(samples, output_names[0]))
+        ys.append(get_moment(samples, output_names[1]))
+        zs.append(labels)
+    xs = np.array(xs)
+    ys = np.array(ys)
+    # for covariance
+    assert len(xs.shape) == 1
+    # y is 2 features (will always be the case except for cov)
+    assert ys.shape[1] == 2
+    y0s = ys[:,0]
+    y1s = ys[:,1]
+    feats = {'cov': xs, 'var0': y0s, 'var1': y1s}
+    import seaborn as sns
+    for name0, name1 in itertools.combinations(feats.keys(), 2):
+        print(name0, name1)
+        sns.kdeplot(feats[name0], feats[name1], label='_'.join([name0, name1]))
+        plt.legend()
+        plt.savefig(os.path.join(path, f'{name0}_{name1}_dist.png'))
 
 
 
@@ -109,6 +155,8 @@ class SyntheticDataset(Dataset):
                 y += [quantiles[16:18]]
             elif output_name == 'cov':
                 y += [covariances]
+            elif output_name == 'cov-var-function':
+                y = [np.square(covariances)/2 * logsumexp(stds, axis=0).ravel()]
             else:
                 y += [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), medians.ravel(), covariances.ravel()][:n_outputs]
                 # y += [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel(), quantiles][:n_outputs]
@@ -245,7 +293,7 @@ class EnsembleNetwork(nn.Module):
 
 
 def train_nn(model, name, optimizer, scheduler, train_generator, test_generator, classification=False, 
-             n_epochs=10, outputs=[], use_wandb=True, plot_gradients=True):
+             n_epochs=10, outputs=[], use_wandb=False, plot_gradients=False):
     if use_wandb:
         import wandb
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -281,6 +329,8 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                 wandb.log({f"{name} train loss per step": loss}, step=step)
             if len(outputs) > 1:
                 outputs_loss = loss_elements.mean(dim=0)
+                print(outputs)
+                print(outputs_loss)
                 assert len(outputs) == len(outputs_loss)
                 per_output_loss = outputs_loss
                 if use_wandb:
@@ -291,8 +341,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             optimizer.step()
             step += 1
             if step % 20 == 0:
-                if len(outputs)>1:
-                    losses_tr.append(per_output_loss.detach().cpu().numpy())
+                # losses_tr.append(per_output_loss.detach().cpu().numpy())
                 
                 aux = []
                 accuracy = []
@@ -332,8 +381,8 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                         +'test accuracy: ' + np.nanmean(accuracy))
                 else:
                     print('Train loss: '+str(train_loss)+", test loss: "+str(test_loss)) 
-                if len(outputs)> 1:
-                    losses_ts.append(per_output_loss.detach().cpu().numpy())
+                # losses_ts.append(per_output_loss.detach().cpu().numpy())
+                losses_ts.append(test_loss)
                 if not np.isnan(train_loss) and not best_loss_ts or (test_loss < best_loss_ts):
                     if use_wandb:
                         wandb.run.summary["best_loss"] = test_loss
@@ -366,14 +415,18 @@ if __name__ == "__main__":
     parser.add_argument('--distribution', default='normal', help='normal|gamma|t', type=str)
     parser.add_argument('-m', '--model', default='deepsets', type=str, help='deepsets|settransformer|deepsamples')
     parser.add_argument('--path', default='distribution_plots/', type=str)
+    parser.add_argument('--wandb_test', action='store_true')
     args = parser.parse_args()
 
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    if args.name:
-        wandb.init(project='synthetic-moments1', name=args.name)
+    if args.wandb_test:
+        wandb.init(project='wandb_test')
     else:
-        wandb.init(project='synthetic-moments1')
+        if args.name:
+            wandb.init(project='synthetic-moments1', name=args.name)
+        else:
+            wandb.init(project='synthetic-moments1')
 
     if args.hematocrit:
         data_config = {
@@ -398,8 +451,10 @@ if __name__ == "__main__":
         test = SyntheticDataset(1000, args.sample_size, args.features, args.outputs, args.output_name, args.distribution)
         num_workers = 1
         n_dists = 1
-        n_outputs = args.outputs
-        n_final_outputs = n_outputs * args.features if n_outputs < 5 else n_outputs * args.features - 1
+        if args.output_name == 'cov-var-function':
+            n_final_outputs = 1
+        else:
+            n_final_outputs = args.outputs * args.features if args.outputs < 5 else args.outputs * args.features - 1
         # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
         output_names = list(map(str, itertools.product(['mean', 'std', 'skew', 'kurtosis', 'median', 'covariance'][:args.outputs], range(args.features))))
         # covariance only has one
@@ -407,7 +462,9 @@ if __name__ == "__main__":
             output_names = output_names[:-1]
         if args.plot:
             os.makedirs(args.path, exist_ok=True)
-            plot_moments_distribution(train, outputs_names, path=args.path) # possibly we might want to add something relative to the experiments 
+            # plot_moments_distribution(train, output_names, path=args.path) # possibly we might want to add something relative to the experiments
+            if args.output_name == "cov-var-function":
+                plot_2d_moments_dist_and_func(train, ['covariance', 'var', args.output_name], path=args.path)
         
     train_generator = DataLoader(train,
                                     batch_size=args.batch_size,
@@ -446,6 +503,9 @@ if __name__ == "__main__":
         output_names = list(map(str, itertools.product(['mean', 'std', 'skew', 'kurtosis', 'median', 'covariance'][:args.outputs], range(args.features))))
         if args.outputs > 5:
             output_names = output_names[:-1]
+    # only one output, not one per feature
+    elif args.output_name == 'cov-var-function':
+        output_names = [args.output_name]
     else:
         output_names = list(map(str, itertools.product([args.output_name], range(args.features))))
     # covariance only has one
