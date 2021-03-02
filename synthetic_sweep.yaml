@@ -8,17 +8,17 @@ parameters:
     seed:
         values: [0, 1, 2, 3, 4, 5, 6 ,7, 8, 9]
     learning_rate:
-        values: [0.001] #[.1, .01, .001, .0001]
+        values: [.1, .01, .001, .0001]
     batch_size:
         values: [64]
     enc_layers:
-        values: [2] #[1, 2, 3, 4]
+        values: [1, 2, 3, 4]
     dec_layers:
-        values: [1] # [1, 2, 3, 4]
+        values: [1, 2, 3, 4]
     output_layers:
         values: [1]  #, 2, 3]
     hidden_units:
-        values: [256] #[64, 128, 256]
+        values: [64, 128, 256]
     step_size:
         values: [50000]  # so no effect
     gamma:
@@ -32,8 +32,8 @@ parameters:
     output_multiplier:
         values: [1] #, 2, 4]
     output_name:
-        values: ["mean", "var", "kurtosis", "skew", "cov",  "quantiles_0.2", "quantiles_0.5"]
+        values: ["cov-var-function"]
     distribution:
         values: ["normal"]
-
-
+    model:
+        values: ['deepsets']
