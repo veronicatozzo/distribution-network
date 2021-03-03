@@ -90,7 +90,7 @@ class SyntheticDataset(Dataset):
         self.n_dim = n_dim
         self.Xs = []
         self.ys = []
-        print('Dataset output', output_name)
+        print('Dataset output', output_names)
         for n in range(N):
             x = []
             y = []
@@ -429,7 +429,6 @@ if __name__ == "__main__":
             wandb.init(project='synthetic-moments1', name=args.name)
         else:
             wandb.init(project='synthetic-moments1')
-
     if args.hematocrit:
         data_config = {
             'inputs': ["rbc", "retics", "plt", "basos", "perox"],
@@ -458,16 +457,15 @@ if __name__ == "__main__":
         else:
             n_final_outputs = len(args.output_name) * args.features if 'cov' not in args.output_name else len(args.output_name)  * args.features - 1
         # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
-        output_names = list(map(str, itertools.product(['mean', 'std', 'skew', 'kurtosis', 'median', 'covariance'][:args.outputs], range(args.features))))
+        output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
         # covariance only has one
-        if args.outputs > 5:
-            output_names = output_names[:-1]
+       # if args.outputs > 5:
+        #    output_names = output_names[:-1]
         if args.plot:
             os.makedirs(args.path, exist_ok=True)
             # plot_moments_distribution(train, output_names, path=args.path) # possibly we might want to add something relative to the experiments
             if args.output_name == "cov-var-function":
                 plot_2d_moments_dist_and_func(train, ['covariance', 'var', args.output_name], path=args.path)
-        
     train_generator = DataLoader(train,
                                     batch_size=args.batch_size,
                                     shuffle=True,
@@ -495,6 +493,7 @@ if __name__ == "__main__":
     else:
         model_unit = BasicDeepSetMean
         n_inputs = args.features
+     
     model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers).to(device) 
                             for i in range(num_models)], n_outputs=n_final_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
@@ -502,14 +501,13 @@ if __name__ == "__main__":
 
     # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
     output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
-    if 'cov' in args.output_names:
+    if 'cov' in args.output_name:
             output_names = output_names[:-1]
     # only one output, not one per feature
     elif args.output_name == 'cov-var-function':
         output_names = [args.output_name]
     else:
-        output_names = list(map(str, itertools.product([args.output_name], range(args.features))))
-
+        output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
     model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
                                             train_generator, test_generator, n_epochs=100,
                                             outputs=output_names, use_wandb=True, plot_gradients=False)
