@@ -84,7 +84,7 @@ def plot_2d_moments_dist_and_func(train, output_names, path=''):
 
 
 class SyntheticDataset(Dataset):
-    def __init__(self, N=1000, n_samples=500, n_dim=2, n_outputs=1, output_name=None, distribution='normal'):
+    def __init__(self, N=1000, n_samples=500, n_dim=2, output_names=None, distribution='normal'):
         self.N = N
         self.n_samples = n_samples
         self.n_dim = n_dim
@@ -116,49 +116,50 @@ class SyntheticDataset(Dataset):
             if self.n_dim > 1:
                 covariances = np.array(empirical_covariance(X)[0, 1]).reshape(1, 1)
             quantiles = np.quantile(X, np.arange(.1, 1, .1), axis=0).ravel()
-            output_names = [output_name]
+            
             # y = [means2.ravel(), means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()][:n_outputs]
             # y = [np.square(stds.ravel()), means2.ravel(), means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()][:n_outputs]
-            if output_name == 'mean':
-                y += [means.ravel()]
-            elif output_name == 'x^2':
-                y += [means2.ravel()]
-            elif output_name == 'x^3':
-                means3 = np.mean(X**3, axis=0)
-                y = [means3.ravel()]
-            elif output_name == 'x^4':
-                means4 = np.mean(X**4, axis=0)
-                y = [means4.ravel()]
-            elif output_name == 'var':
-                y += [np.square(stds.ravel())]
-            elif output_name == 'skew':
-                y += [skews.ravel()]
-            elif output_name == "kurtosis":
-                y += [kurtoses.ravel()]
-            elif output_name == 'quantiles_0.1':
-                y += [quantiles[:2]]
-            elif output_name == 'quantiles_0.2':
-                y += [quantiles[2:4]]
-            elif output_name == 'quantiles_0.3':
-                y += [quantiles[4:6]]
-            elif output_name == 'quantiles_0.4':
-                y += [quantiles[6:8]]
-            elif output_name == 'quantiles_0.5':
-                y += [quantiles[8:10]]
-            elif output_name == 'quantiles_0.6':
-                y += [quantiles[10:12]]
-            elif output_name == 'quantiles_0.7':
-                y += [quantiles[12:14]]
-            elif output_name == 'quantiles_0.8':
-                y += [quantiles[14:16]]
-            elif output_name == 'quantiles_0.9':
-                y += [quantiles[16:18]]
-            elif output_name == 'cov':
-                y += [covariances]
-            elif output_name == 'cov-var-function':
-                y = [np.square(covariances)/2 * logsumexp(stds, axis=0).ravel()]
-            else:
-                y += [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), medians.ravel(), covariances.ravel()][:n_outputs]
+            for output_name in output_names:
+                if output_name == 'mean':
+                    y += [means.ravel()]
+                elif output_name == 'x^2':
+                    y += [means2.ravel()]
+                elif output_name == 'x^3':
+                    means3 = np.mean(X**3, axis=0)
+                    y = [means3.ravel()]
+                elif output_name == 'x^4':
+                    means4 = np.mean(X**4, axis=0)
+                    y = [means4.ravel()]
+                elif output_name == 'var':
+                    y += [np.square(stds.ravel())]
+                elif output_name == 'skew':
+                    y += [skews.ravel()]
+                elif output_name == "kurtosis":
+                    y += [kurtoses.ravel()]
+                elif output_name == 'quantiles_0.1':
+                    y += [quantiles[:2]]
+                elif output_name == 'quantiles_0.2':
+                    y += [quantiles[2:4]]
+                elif output_name == 'quantiles_0.3':
+                    y += [quantiles[4:6]]
+                elif output_name == 'quantiles_0.4':
+                    y += [quantiles[6:8]]
+                elif output_name == 'quantiles_0.5':
+                    y += [quantiles[8:10]]
+                elif output_name == 'quantiles_0.6':
+                    y += [quantiles[10:12]]
+                elif output_name == 'quantiles_0.7':
+                    y += [quantiles[12:14]]
+                elif output_name == 'quantiles_0.8':
+                    y += [quantiles[14:16]]
+                elif output_name == 'quantiles_0.9':
+                    y += [quantiles[16:18]]
+                elif output_name == 'cov':
+                    y += [covariances]
+                elif output_name == 'cov-var-function':
+                    y = [np.square(covariances)/2 * logsumexp(stds, axis=0).ravel()]
+                # else:
+                # y += [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), medians.ravel(), covariances.ravel()][:n_outputs]
                 # y += [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel(), quantiles][:n_outputs]
             #y = [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel()][:n_outputs]
             y = np.concatenate(y).ravel()
@@ -405,9 +406,10 @@ if __name__ == "__main__":
     parser.add_argument('-f', '--features', default=2, type=int)
     parser.add_argument('-n', '--sample_size', default=1000, type=int)
     # greater than 1 currently doesn't work
-    parser.add_argument('-o', '--outputs', default=1, type=int)  # total outputs will be outputs * features
+    #parser.add_argument('-o', '--outputs', default=1, type=int)  # total outputs will be outputs * features
     parser.add_argument('-om', '--output_multiplier', default=1, type=int)  # total features before linear layer will be outputs * features * om
-    parser.add_argument('-on', '--output_name', default='', help='x^2|var', type=str)
+    parser.add_argument('-on', '--output_name', metavar='N', type=str, nargs='+',
+                    help='a list of strings denoting the output types')
     parser.add_argument('--name', type=str)
     parser.add_argument('--hematocrit', action='store_true')
     parser.add_argument('--plot', action='store_true')
@@ -447,14 +449,14 @@ if __name__ == "__main__":
         n_final_outputs = args.outputs
         output_names = ['hematocrit']
     else:
-        train = SyntheticDataset(10000, args.sample_size, args.features, args.outputs, args.output_name, args.distribution)
-        test = SyntheticDataset(1000, args.sample_size, args.features, args.outputs, args.output_name, args.distribution)
+        train = SyntheticDataset(10000, args.sample_size, args.features, args.output_name, args.distribution)
+        test = SyntheticDataset(1000, args.sample_size, args.features,args.output_name, args.distribution)
         num_workers = 1
         n_dists = 1
         if args.output_name == 'cov-var-function':
             n_final_outputs = 1
         else:
-            n_final_outputs = args.outputs * args.features if args.outputs < 5 else args.outputs * args.features - 1
+            n_final_outputs = len(args.output_name) * args.features if 'cov' not in args.output_name else len(args.output_name)  * args.features - 1
         # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
         output_names = list(map(str, itertools.product(['mean', 'std', 'skew', 'kurtosis', 'median', 'covariance'][:args.outputs], range(args.features))))
         # covariance only has one
@@ -479,7 +481,7 @@ if __name__ == "__main__":
                             pin_memory=False,
                             drop_last=True)
 
-    n_outputs = args.outputs
+    n_outputs = len(args.output_name)
     num_models = n_outputs * args.output_multiplier
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     if args.model == 'settransformer':
@@ -499,19 +501,15 @@ if __name__ == "__main__":
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
 
     # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
-    if args.output_name == 'all':
-        output_names = list(map(str, itertools.product(['mean', 'std', 'skew', 'kurtosis', 'median', 'covariance'][:args.outputs], range(args.features))))
-        if args.outputs > 5:
+    output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
+    if 'cov' in args.output_names:
             output_names = output_names[:-1]
     # only one output, not one per feature
     elif args.output_name == 'cov-var-function':
         output_names = [args.output_name]
     else:
         output_names = list(map(str, itertools.product([args.output_name], range(args.features))))
-    # covariance only has one
-    if args.outputs == 5:
-        output_names = output_names[:-1]
-    output_names = ['kurtoses']
+
     model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
                                             train_generator, test_generator, n_epochs=100,
                                             outputs=output_names, use_wandb=True, plot_gradients=False)
