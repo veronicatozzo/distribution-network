@@ -81,6 +81,14 @@ def plot_2d_moments_dist_and_func(train, output_names, path=''):
     print('mse', mean_squared_error(zs, zs.mean()))
     import sys; sys.exit()
     import seaborn as sns
+    print(labels)
+    print(np.array(labels).shape)
+    print(max(labels) - min(labels))
+    print(np.array(labels).std())
+    plt.hist(labels)
+    plt.xscale('log')
+    plt.savefig(os.path.join(path, 'cov-var-function.png'))
+    plt.clf()
     for name0, name1 in itertools.combinations(feats.keys(), 2):
         print(name0, name1)
         sns.kdeplot(feats[name0], feats[name1], label='_'.join([name0, name1]))
@@ -163,7 +171,9 @@ class SyntheticDataset(Dataset):
                 elif output_name == 'cov':
                     y += [covariances]
                 elif output_name == 'cov-var-function':
-                    y = [np.square(covariances)/2 * logsumexp(stds, axis=0).ravel()]
+                    y += [np.square(covariances)/2 * logsumexp(stds, axis=0).ravel()]
+                elif output_name == 'cov-var':
+                    y += [np.square(stds.ravel()), covariances.ravel()]
                 # else:
                 # y += [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), medians.ravel(), covariances.ravel()][:n_outputs]
                 # y += [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel(), quantiles][:n_outputs]
@@ -465,6 +475,8 @@ if __name__ == "__main__":
         n_dists = 1
         if args.output_name == ['cov-var-function']:
             n_final_outputs = 1
+        elif args.output_name == 'cov-var':
+            n_final_outputs = 3
         else:
             n_final_outputs = len(args.output_name) * args.features if 'cov' not in args.output_name else len(args.output_name)  * args.features - 1
         # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
@@ -523,6 +535,8 @@ if __name__ == "__main__":
     # only one output, not one per feature
     elif args.output_name == ['cov-var-function']:
         output_names = [args.output_name]
+    elif args.output_name == 'cov-var':
+        output_names = ['var0', 'var1', 'cov']
     else:
         output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
     model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
