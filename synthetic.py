@@ -74,6 +74,12 @@ def plot_2d_moments_dist_and_func(train, output_names, path=''):
     y0s = ys[:,0]
     y1s = ys[:,1]
     feats = {'cov': xs, 'var0': y0s, 'var1': y1s}
+    plt.hist(zs)
+    plt.savefig('cov-var-function.png')
+    print(zs.min(), zs.max())
+    plt.clf()
+    print('mse', mean_squared_error(zs, zs.mean()))
+    import sys; sys.exit()
     import seaborn as sns
     for name0, name1 in itertools.combinations(feats.keys(), 2):
         print(name0, name1)
@@ -424,6 +430,7 @@ if __name__ == "__main__":
     parser.add_argument('-m', '--model', default='deepsets', type=str, help='deepsets|settransformer|deepsamples')
     parser.add_argument('--path', default='distribution_plots/', type=str)
     parser.add_argument('--wandb_test', action='store_true')
+    parser.add_argument('--cpu', action='store_true')
     args = parser.parse_args()
     
     if args.wandb_test:
@@ -485,7 +492,7 @@ if __name__ == "__main__":
 
     n_outputs = len(args.output_name)
     num_models = n_outputs * args.output_multiplier
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = 'cpu' if args.cpu else torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     if args.model == 'settransformer':
         model_unit = SmallSetTransformer
         n_inputs = args.features
@@ -510,8 +517,9 @@ if __name__ == "__main__":
 
     # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
     output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
+    # cov must be last in the list
     if 'cov' in args.output_name:
-            output_names = output_names[:-1]
+        output_names = output_names[:-1]
     # only one output, not one per feature
     elif args.output_name == ['cov-var-function']:
         output_names = [args.output_name]

@@ -14,9 +14,9 @@ parameters:
     batch_size:
         values: [64]
     enc_layers:
-        values: [1, 2]
+        values: [2, 3, 4]
     dec_layers:
-        values: [1, 2]
+        values: [2, 3, 4]
     output_layers:
         values: [1]  #, 2, 3]
     hidden_units:
@@ -30,7 +30,7 @@ parameters:
     features:
         values: [2]
     output_multiplier:
-        values: [1] #, 2, 4]
+        values: [2] #, 2, 4]
     output_name:
         values: ["cov-var-function"]
     distribution:
