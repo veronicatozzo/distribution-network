@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 import itertools
 import torch.nn.functional as F
-from set_transformer.models import SmallSetTransformer, SmallDeepSamples
+#from .set_transformer.models import SmallSetTransformer, SmallDeepSamples
 import torch.nn as nn
 import torch
 import copy
@@ -84,7 +84,7 @@ def plot_2d_moments_dist_and_func(train, output_names, path=''):
 
 
 class SyntheticDataset(Dataset):
-    def __init__(self, N=1000, n_samples=500, n_dim=2, output_names=None, distribution='normal'):
+    def __init__(self, N=1000, n_samples=500, n_dim=2, output_names=None, distribution='normal', random_state=0):
         self.N = N
         self.n_samples = n_samples
         self.n_dim = n_dim
@@ -97,11 +97,11 @@ class SyntheticDataset(Dataset):
             #for d in range(n_distr):
             if distribution == "normal":
                 cov = make_spd_matrix(self.n_dim)
-                X = np.random.multivariate_normal(np.random.randn(self.n_dim), cov, size=self.n_samples, check_valid='warn', tol=1e-8)
+                X = np.random.RandomState(random_state).multivariate_normal(np.random.randn(self.n_dim), cov, size=self.n_samples, check_valid='warn', tol=1e-8)
             elif distribution == "t":
-                X = np.random.standard_t(np.random.randint(10, 20, size=self.n_dim), size=(self.n_samples, self.n_dim))
+                X = np.random.RandomState(random_state).standard_t(np.random.randint(10, 20, size=self.n_dim), size=(self.n_samples, self.n_dim))
             elif distribution == "gamma":
-                X = np.random.gamma(np.random.randint(1, 30, size=self.n_dim), np.random.randint(1, 30, size=self.n_dim), size=(self.n_samples, self.n_dim))
+                X = np.random.RandomState(random_state).gamma(np.random.randint(1, 30, size=self.n_dim), np.random.randint(1, 30, size=self.n_dim), size=(self.n_samples, self.n_dim))
             self.Xs.append(X)
             X2 = X**2
             means2 = np.mean(X2, axis=0)
@@ -294,7 +294,10 @@ class EnsembleNetwork(nn.Module):
 
 
 def train_nn(model, name, optimizer, scheduler, train_generator, test_generator, classification=False, 
-             n_epochs=10, outputs=[], use_wandb=False, plot_gradients=False):
+             n_epochs=10, outputs=[], use_wandb=False, plot_gradients=False, seed=0):
+    
+    np.random.seed(seed)
+    torch.manual_seed(seed)
     if use_wandb:
         import wandb
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -413,15 +416,14 @@ if __name__ == "__main__":
     parser.add_argument('--name', type=str)
     parser.add_argument('--hematocrit', action='store_true')
     parser.add_argument('--plot', action='store_true')
-    parser.add_argument('--seed', default=0, type=int)
+    parser.add_argument('--seed_weights', default=0, type=int)
+    parser.add_argument('--seed_dataset', default=0, type=int)
     parser.add_argument('--distribution', default='normal', help='normal|gamma|t', type=str)
     parser.add_argument('-m', '--model', default='deepsets', type=str, help='deepsets|settransformer|deepsamples')
     parser.add_argument('--path', default='distribution_plots/', type=str)
     parser.add_argument('--wandb_test', action='store_true')
     args = parser.parse_args()
-
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
+    
     if args.wandb_test:
         wandb.init(project='wandb_test')
     else:
@@ -448,8 +450,8 @@ if __name__ == "__main__":
         n_final_outputs = args.outputs
         output_names = ['hematocrit']
     else:
-        train = SyntheticDataset(10000, args.sample_size, args.features, args.output_name, args.distribution)
-        test = SyntheticDataset(1000, args.sample_size, args.features,args.output_name, args.distribution)
+        train = SyntheticDataset(10000, args.sample_size, args.features, args.output_name, args.distribution, args.seed_dataset)
+        test = SyntheticDataset(1000, args.sample_size, args.features,args.output_name, args.distribution, args.seed_dataset)
         num_workers = 1
         n_dists = 1
         if args.output_name == 'cov-var-function':
@@ -510,4 +512,4 @@ if __name__ == "__main__":
         output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
     model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
                                             train_generator, test_generator, n_epochs=100,
-                                            outputs=output_names, use_wandb=True, plot_gradients=False)
+                                            outputs=output_names, use_wandb=True, plot_gradients=False, seed=args.seed_weights)

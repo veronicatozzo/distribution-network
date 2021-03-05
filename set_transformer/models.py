@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch
 
-from set_transformer.modules import SAB, PMA, MB, MB_norm
+from .set_transformer.modules import SAB, PMA, MB, MB_norm
 
 class SmallSetTransformer(nn.Module):
     def __init__(self, n_outputs=1, n_inputs=1, n_enc_layers=2, n_hidden_units=64, n_dec_layers=2, **kwargs):
