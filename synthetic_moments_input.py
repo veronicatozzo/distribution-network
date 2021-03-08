@@ -26,7 +26,6 @@ class MLP(nn.Module):
         self.layers = nn.Sequential(*layers)
         
     def forward(self, x, length=None):
-        # convert tensor (128, 1, 28, 28) --> (128, 1*28*28)
         return self.layers(x)
 
 class SyntheticMomentsDataset(Dataset):
