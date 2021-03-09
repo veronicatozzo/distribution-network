@@ -335,12 +335,12 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
     losses_ts = []
     dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
     for epoch in range(n_epochs):
-        print(epoch)
         train_aux = []
         for x, y, lengths in train_generator:
             x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
-    
-            loss_elements = criterion(model(x, lengths), y)
+            preds = model(x, lengths)
+            assert preds.shape == y.shape, "{} {}".format(preds.shape, y.shape)
+            loss_elements = criterion(preds, y)
             loss = loss_elements.mean()
             print(model(x, lengths).shape, y.shape)
             if np.isnan(loss.detach().cpu().numpy()):
@@ -361,6 +361,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            preds = model(x, lengths)
             step += 1
             if step % 20 == 0:
                 # losses_tr.append(per_output_loss.detach().cpu().numpy())
@@ -441,6 +442,7 @@ if __name__ == "__main__":
     parser.add_argument('--path', default='distribution_plots/', type=str)
     parser.add_argument('--wandb_test', action='store_true')
     parser.add_argument('--cpu', action='store_true')
+    parser.add_argument('--epochs', default=100, type=int)
     args = parser.parse_args()
     
     if args.wandb_test:
@@ -540,5 +542,5 @@ if __name__ == "__main__":
     else:
         output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
     model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
-                                            train_generator, test_generator, n_epochs=100,
-                                            outputs=output_names, use_wandb=True, plot_gradients=True, seed=args.seed_weights)
+                                            train_generator, test_generator, n_epochs=args.epochs,
+                                            outputs=output_names, use_wandb=True, plot_gradients=False, seed=args.seed_weights)
