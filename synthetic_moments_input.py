@@ -14,19 +14,23 @@ class MLP(nn.Module):
     def __init__(self, n_inputs, n_hidden_units, n_layers):
         super(MLP, self).__init__()
         layers = []
-        for i in range(n_layers):
-            if i == 0:
-                layers.append(nn.Linear(n_inputs, n_hidden_units))
-            elif i == n_layers - 1:
-                layers.append(nn.Linear(n_hidden_units, 1))
-            else:
-                layers.append(nn.Linear(n_hidden_units, n_hidden_units))
-            layers.append(nn.ReLU())
-        layers = layers[:-1]
+        if n_layers == 1:
+            layers.append(nn.Linear(n_inputs, 1))
+        else:
+            for i in range(n_layers):
+                if i == 0:
+                    layers.append(nn.Linear(n_inputs, n_hidden_units))
+                elif i == n_layers - 1:
+                    layers.append(nn.Linear(n_hidden_units, 1))
+                else:
+                    layers.append(nn.Linear(n_hidden_units, n_hidden_units))
+                layers.append(nn.ReLU())
+            layers = layers[:-1]
         self.layers = nn.Sequential(*layers)
         
     def forward(self, x, length=None):
         return self.layers(x)
+        # return self.layers(x).reshape((-1, 1, 1, 1))
 
 class SyntheticMomentsDataset(Dataset):
     def __init__(self, N=1000, n_samples=500, n_dim=2, output_names=None, distribution='normal', random_state=0):
@@ -54,6 +58,9 @@ class SyntheticMomentsDataset(Dataset):
             self.Xs.append(np.array(moments))
             y = [np.square(covariances)/2 * logsumexp(stds, axis=0).ravel()]
             self.ys.append(np.array(y))
+        # print('before', np.array(self.ys).shape)
+        self.ys = np.array(self.ys).reshape((-1, 1))
+        # print('after', self.ys.shape)
     def __getitem__(self, index):
         return self.Xs[index], self.ys[index], np.arange(len(self.ys[index])).reshape(-1, 1)
         
@@ -82,6 +89,7 @@ if __name__ == "__main__":
     parser.add_argument('--cpu', default='store_true')
     # dummy, placeholder for future
     parser.add_argument('--output_name', default='cov-var-function')
+    parser.add_argument('--epochs', default=100, type=int)
     args = parser.parse_args()
     
     if args.wandb_test:
@@ -96,8 +104,29 @@ if __name__ == "__main__":
     test = SyntheticMomentsDataset(1000, args.sample_size, args.features,args.output_name, args.distribution, args.seed_dataset)
 
     model = MLP(3, args.hidden_units, args.output_layers)
+    # print(model)
+    # import sys; sys.exit()
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
+
+    from sklearn.linear_model import RidgeCV
+
+    mdl = RidgeCV()
+    X_tr = np.array([train[i][0] for i in range(len(train))])
+    print(X_tr.shape)
+    Y_tr = np.squeeze(np.array([train[i][1] for i in range(len(train))]), axis=(-1, -2))
+    print(Y_tr.shape)
+    X_ts = np.array([test[i][0] for i in range(len(test))])
+    print(X_ts.shape)
+    Y_ts = np.squeeze(np.array([test[i][1] for i in range(len(test))]), axis=(-1, -2))
+    print(Y_ts.shape)
+    mdl.fit(X_tr, Y_tr)
+    ridge_loss = mean_squared_error(Y_ts, mdl.predict(X_ts))
+    ridge_tr_loss = mean_squared_error(Y_tr, mdl.predict(X_tr))
+    print('test error: ', ridge_loss)
+    print('train error: ', ridge_tr_loss)
+    wandb.run.summary["ridge_tr_loss"] = ridge_tr_loss
+    wandb.run.summary["ridge_loss"] = ridge_loss
 
     num_workers = 32
     train_generator = DataLoader(train,
@@ -114,5 +143,8 @@ if __name__ == "__main__":
                             drop_last=True)
     
     model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
-                                            train_generator, test_generator, n_epochs=100,
+                                            train_generator, test_generator, n_epochs=args.epochs,
                                             outputs=['cov-var-function'], use_wandb=True, plot_gradients=False, seed=args.seed_weights)
+    
+
+    
