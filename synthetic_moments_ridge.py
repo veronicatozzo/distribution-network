@@ -1,4 +1,4 @@
- import os
+import os
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
@@ -10,26 +10,7 @@ import numpy as np
 from synthetic import train_nn
 from scipy.special import logsumexp
 from sklearn.linear_model import RidgeCV
- import wandb
-
-class MLP(nn.Module):
-    def __init__(self, n_inputs, n_hidden_units, n_layers):
-        super(MLP, self).__init__()
-        layers = []
-        for i in range(n_layers):
-            if i == 0:
-                layers.append(nn.Linear(n_inputs, n_hidden_units))
-            elif i == n_layers - 1:
-                layers.append(nn.Linear(n_hidden_units, 1))
-            else:
-                layers.append(nn.Linear(n_hidden_units, n_hidden_units))
-            layers.append(nn.ReLU())
-        layers = layers[:-1]
-        self.layers = nn.Sequential(*layers)
-        
-    def forward(self, x, length=None):
-        # convert tensor (128, 1, 28, 28) --> (128, 1*28*28)
-        return self.layers(x)
+import wandb
 
 class SyntheticMomentsDataset(Dataset):
     def __init__(self, N=1000, n_samples=500, n_dim=2, output_names=None, distribution='normal', random_state=0):

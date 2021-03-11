@@ -325,6 +325,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
             loss_elements = criterion(model(x, lengths), y)
             loss = loss_elements.mean()
+            print(model(x, lengths).shape, y.shape)
             if np.isnan(loss.detach().cpu().numpy()):
                 raise ValueError("Train loss is nan: ", loss)
             train_aux.append(loss.detach().cpu().numpy())
@@ -492,12 +493,16 @@ if __name__ == "__main__":
         # n_inputs for deepsamples should actually be n_dists
         # we code in this way to maintain compatibility with main.py
         n_inputs = 1
+    elif args.model == 'deepsets-sum':
+        model_unit = BasicDeepSetSum
+        n_inputs = args.features
     else:
         model_unit = BasicDeepSetMean
         n_inputs = args.features
      
     model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers).to(device) 
                             for i in range(num_models)], n_outputs=n_final_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
+    print(model)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
 
@@ -512,4 +517,4 @@ if __name__ == "__main__":
         output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
     model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
                                             train_generator, test_generator, n_epochs=100,
-                                            outputs=output_names, use_wandb=True, plot_gradients=False, seed=args.seed_weights)
+                                            outputs=output_names, use_wandb=True, plot_gradients=True, seed=args.seed_weights)
