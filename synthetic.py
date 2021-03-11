@@ -74,7 +74,21 @@ def plot_2d_moments_dist_and_func(train, output_names, path=''):
     y0s = ys[:,0]
     y1s = ys[:,1]
     feats = {'cov': xs, 'var0': y0s, 'var1': y1s}
+    plt.hist(zs)
+    plt.savefig('cov-var-function.png')
+    print(zs.min(), zs.max())
+    plt.clf()
+    print('mse', mean_squared_error(zs, zs.mean()))
+    import sys; sys.exit()
     import seaborn as sns
+    print(labels)
+    print(np.array(labels).shape)
+    print(max(labels) - min(labels))
+    print(np.array(labels).std())
+    plt.hist(labels)
+    plt.xscale('log')
+    plt.savefig(os.path.join(path, 'cov-var-function.png'))
+    plt.clf()
     for name0, name1 in itertools.combinations(feats.keys(), 2):
         print(name0, name1)
         sns.kdeplot(feats[name0], feats[name1], label='_'.join([name0, name1]))
@@ -157,7 +171,9 @@ class SyntheticDataset(Dataset):
                 elif output_name == 'cov':
                     y += [covariances]
                 elif output_name == 'cov-var-function':
-                    y = [np.square(covariances)/2 * logsumexp(stds, axis=0).ravel()]
+                    y += [np.square(covariances)/2 * logsumexp(stds, axis=0).ravel()]
+                elif output_name == 'cov-var':
+                    y += [np.square(stds.ravel()), covariances.ravel()]
                 # else:
                 # y += [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), medians.ravel(), covariances.ravel()][:n_outputs]
                 # y += [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel(), quantiles][:n_outputs]
@@ -319,12 +335,12 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
     losses_ts = []
     dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
     for epoch in range(n_epochs):
-        print(epoch)
         train_aux = []
         for x, y, lengths in train_generator:
             x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
-    
-            loss_elements = criterion(model(x, lengths), y)
+            preds = model(x, lengths)
+            assert preds.shape == y.shape, "{} {}".format(preds.shape, y.shape)
+            loss_elements = criterion(preds, y)
             loss = loss_elements.mean()
             print(model(x, lengths).shape, y.shape)
             if np.isnan(loss.detach().cpu().numpy()):
@@ -345,6 +361,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            preds = model(x, lengths)
             step += 1
             if step % 20 == 0:
                 # losses_tr.append(per_output_loss.detach().cpu().numpy())
@@ -424,6 +441,9 @@ if __name__ == "__main__":
     parser.add_argument('-m', '--model', default='deepsets', type=str, help='deepsets|settransformer|deepsamples')
     parser.add_argument('--path', default='distribution_plots/', type=str)
     parser.add_argument('--wandb_test', action='store_true')
+    parser.add_argument('--cpu', action='store_true')
+    parser.add_argument('--epochs', default=100, type=int)
+    parser.add_argument('--train_size', default=10000, type=int)
     args = parser.parse_args()
     
     if args.wandb_test:
@@ -452,12 +472,14 @@ if __name__ == "__main__":
         n_final_outputs = args.outputs
         output_names = ['hematocrit']
     else:
-        train = SyntheticDataset(10000, args.sample_size, args.features, args.output_name, args.distribution, args.seed_dataset)
+        train = SyntheticDataset(args.train_size, args.sample_size, args.features, args.output_name, args.distribution, args.seed_dataset)
         test = SyntheticDataset(1000, args.sample_size, args.features,args.output_name, args.distribution, args.seed_dataset)
         num_workers = 1
         n_dists = 1
         if args.output_name == ['cov-var-function']:
             n_final_outputs = 1
+        elif args.output_name == 'cov-var':
+            n_final_outputs = 3
         else:
             n_final_outputs = len(args.output_name) * args.features if 'cov' not in args.output_name else len(args.output_name)  * args.features - 1
         # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
@@ -485,7 +507,7 @@ if __name__ == "__main__":
 
     n_outputs = len(args.output_name)
     num_models = n_outputs * args.output_multiplier
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = 'cpu' if args.cpu else torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     if args.model == 'settransformer':
         model_unit = SmallSetTransformer
         n_inputs = args.features
@@ -510,13 +532,16 @@ if __name__ == "__main__":
 
     # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
     output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
+    # cov must be last in the list
     if 'cov' in args.output_name:
-            output_names = output_names[:-1]
+        output_names = output_names[:-1]
     # only one output, not one per feature
     elif args.output_name == ['cov-var-function']:
         output_names = [args.output_name]
+    elif args.output_name == 'cov-var':
+        output_names = ['var0', 'var1', 'cov']
     else:
         output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
     model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
-                                            train_generator, test_generator, n_epochs=100,
-                                            outputs=output_names, use_wandb=True, plot_gradients=True, seed=args.seed_weights)
+                                            train_generator, test_generator, n_epochs=args.epochs,
+                                            outputs=output_names, use_wandb=True, plot_gradients=False, seed=args.seed_weights)

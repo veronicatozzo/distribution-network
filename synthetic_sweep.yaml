@@ -6,17 +6,17 @@ metric:
     goal: minimize
 parameters:
     seed_dataset:
-        values: [0, 1]
+        values: [0, 1, 2]
     seed_weights:
-        values: [0, 1]
+        values: [0, 1, 2]
     learning_rate:
         values: [ .01, .001]
     batch_size:
         values: [64]
     enc_layers:
-        values: [1, 2]
+        values: [2]
     dec_layers:
-        values: [1, 2]
+        values: [1]
     output_layers:
         values: [1]  #, 2, 3]
     hidden_units:
@@ -26,14 +26,16 @@ parameters:
     gamma:
         values: [.1] #, .5, .9]
     sample_size:
-        values: [1000]  #, 1000]
+        values: [2, 10, 50, 100]  #, 1000]
     features:
         values: [2]
     output_multiplier:
         values: [1] #, 2, 4]
     output_name:
-        values: ["cov-var-function"]
+        values: ["var", "cov"]
     distribution:
         values: ["normal"]
     model:
         values: ['deepsets-mean', 'deepsets-sum']
+    train_size:
+        values: [2, 100, 10000]
