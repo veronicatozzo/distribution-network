@@ -443,6 +443,7 @@ if __name__ == "__main__":
     parser.add_argument('--wandb_test', action='store_true')
     parser.add_argument('--cpu', action='store_true')
     parser.add_argument('--epochs', default=100, type=int)
+    parser.add_argument('--train_size', default=10000, type=int)
     args = parser.parse_args()
     
     if args.wandb_test:
@@ -471,7 +472,7 @@ if __name__ == "__main__":
         n_final_outputs = args.outputs
         output_names = ['hematocrit']
     else:
-        train = SyntheticDataset(10000, args.sample_size, args.features, args.output_name, args.distribution, args.seed_dataset)
+        train = SyntheticDataset(args.train_size, args.sample_size, args.features, args.output_name, args.distribution, args.seed_dataset)
         test = SyntheticDataset(1000, args.sample_size, args.features,args.output_name, args.distribution, args.seed_dataset)
         num_workers = 1
         n_dists = 1
