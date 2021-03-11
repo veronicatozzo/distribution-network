@@ -6,9 +6,9 @@ metric:
     goal: minimize
 parameters:
     seed_dataset:
-        values: [0, 1]
+        values: [0, 1, 2]
     seed_weights:
-        values: [0, 1]
+        values: [0, 1, 2]
     learning_rate:
         values: [ .01, .001]
     batch_size:
