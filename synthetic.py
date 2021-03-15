@@ -192,7 +192,7 @@ class SyntheticDataset(Dataset):
 
 class BasicDeepSet(nn.Module):
     def __init__(self, n_inputs=2, n_outputs=1, n_enc_layers=4, n_hidden_units=64, n_dec_layers=1, 
-                 multiplication=True,**kwargs):
+                 multiplication=True,ln=False, bn=False, **kwargs):
         super().__init__()
         enc_layers = []
         # enc_layers.append(nn.Linear(in_features=n_inputs, out_features=n_hidden_units))
@@ -204,6 +204,10 @@ class BasicDeepSet(nn.Module):
             if i == 0:
                 enc_layers.append(nn.Linear(in_features=n_inputs, out_features=n_hidden_units))
             else:
+                if ln:
+                    enc_layers.append(nn.LayerNorm(n_hidden_units))
+                if bn:
+                    enc_layers.append(nn.BatchNorm1d(n_hidden_units))
                 enc_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
             enc_layers.append(nn.ReLU())
         # remove last relu
@@ -218,6 +222,10 @@ class BasicDeepSet(nn.Module):
             if i == n_dec_layers - 1:
                 dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_outputs))
             else:
+                if ln:
+                    dec_layers.append(nn.LayerNorm(n_hidden_units))
+                if bn:
+                    dec_layers.append(nn.BatchNorm1d(n_hidden_units))
                 dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
             dec_layers.append(nn.ReLU())
         self.dec = nn.Sequential(*dec_layers)
@@ -353,7 +361,6 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             assert preds.shape == y.shape, "{} {}".format(preds.shape, y.shape)
             loss_elements = criterion(preds, y)
             loss = loss_elements.mean()
-            # print(model(x, lengths).shape, y.shape)
             if np.isnan(loss.detach().cpu().numpy()):
                 raise ValueError("Train loss is nan: ", loss)
             train_aux.append(loss.detach().cpu().numpy())
@@ -421,6 +428,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                     if use_wandb:
                         wandb.run.summary["best_loss"] = test_loss
                     best_loss_ts = test_loss
+            #print(list(model.parameters())[4])
     return model, best_loss_tr, best_loss_ts, losses_tr, losses_ts
 
 if __name__ == "__main__":
@@ -446,6 +454,8 @@ if __name__ == "__main__":
     parser.add_argument('--name', type=str)
     parser.add_argument('--hematocrit', action='store_true')
     parser.add_argument('--plot', action='store_true')
+    parser.add_argument('--layer_norm', action='store_true')
+    parser.add_argument('--batch_norm', action='store_true')
     parser.add_argument('--seed_weights', default=0, type=int)
     parser.add_argument('--seed_dataset', default=0, type=int)
     parser.add_argument('--distribution', default='normal', help='normal|gamma|t', type=str)
@@ -472,7 +482,7 @@ if __name__ == "__main__":
             # 'num_samples': args.num_samples,
             'num_subsamples': 1000,
             'permute_subsamples': False,
-            'normalizer': "none",
+            'normalizer': "all",
             'imputation': "zero"
         }
         Dataset = FullLargeDataset
@@ -539,7 +549,7 @@ if __name__ == "__main__":
         model_unit = BasicDeepSetMean
         n_inputs = args.features
      
-    model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers).to(device) 
+    model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=args.layer_norm, bn=args.batch_norm).to(device) 
                             for i in range(num_models)], n_outputs=n_final_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
     print(model)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
