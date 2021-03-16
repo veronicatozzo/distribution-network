@@ -34,7 +34,7 @@ from scipy.special import logsumexp
 
 class MLP_aggr(nn.Module):
     def __init__(self, n_inputs=2, n_outputs=1, n_samples=1000, n_enc_layers=4, n_hidden_units=64, n_dec_layers=1):
-        super(MLP, self).__init__()
+        super().__init__()
         enc_layers = []
         for i in range(n_enc_layers):
             if i == 0:
@@ -58,7 +58,7 @@ class MLP_aggr(nn.Module):
         
     def forward(self, x, length=None):
         out = self.enc(x)
-        out = torch.transpose(out, 2, 3)
+        out = torch.transpose(out, 1, 2)
         out = self.aggregation(out)
         out = out.squeeze()
         out = self.dec(out)
@@ -68,7 +68,7 @@ class MLP_aggr(nn.Module):
 
 class MLP(nn.Module):
     def __init__(self, n_inputs, n_hidden_units, n_layers, n_outputs):
-        super(MLP, self).__init__()
+        super().__init__()
         layers = []
         if n_layers == 1:
             layers.append(nn.Linear(n_inputs, 1))
@@ -185,6 +185,8 @@ class SyntheticDataset(Dataset):
                 else:
                     self.Xs.append(X)
                     self.ys.append(y)
+        self.Xs = np.array(self.Xs)
+        self.ys = np.array(self.ys)
 
     def __getitem__(self, index):
         return self.Xs[index], self.ys[index], np.arange(self.ys[index].shape[0]).reshape(-1, 1)
