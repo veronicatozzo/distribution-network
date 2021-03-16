@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import os
 from scipy.special import logsumexp
 import math
+from sklearn.preprocessing import StandardScaler
 
 
 #from .src.dataset import FullLargeDataset
@@ -166,13 +167,23 @@ class SyntheticDataset(Dataset):
             y = np.concatenate(y).ravel()
             
             if flatten:
-                self.Xs.append(X.reshape(1, n_samples*n_dim))
-                self.ys.append(y)
+                if reshuffling:
+                    for i in range(reshuffling):
+                        out = X.reshape(1, n_samples*n_dim)
+                        np.random.shuffle(out)
+                        self.Xs.append(out)
+                        self.ys.append(y)
+                else:
+                    self.Xs.append(X.reshape(1, n_samples*n_dim))
+                    self.ys.append(y)
             else:
-                for i in range(reshuffling):
-                    shuff = np.random.shuffle(np.arange(n_samples))
-                    out = X.copy()[shuff, :]
-                    self.Xs.append(out)
+                if reshuffling:
+                    for i in range(reshuffling):
+                        np.random.shuffle(X)
+                        self.Xs.append(X)
+                        self.ys.append(y)
+                else:
+                    self.Xs.append(X)
                     self.ys.append(y)
 
     def __getitem__(self, index):
@@ -328,24 +339,29 @@ if __name__ == "__main__":
             wandb.init(project='synthetic-moments1', name=args.name)
         else:
             wandb.init(project='synthetic-moments1')
-        train = SyntheticDataset(10000, args.sample_size, args.features, args.flatten, args.reshuffling, args.output_name, args.distribution, args.seed_dataset)
-        test = SyntheticDataset(1000, args.sample_size, args.features, args.flatten, args.reshuffling, args.output_name, args.distribution, args.seed_dataset)
-        num_workers = 1
-        n_dists = 1
-        if args.output_name == ['cov-var-function']:
-            n_final_outputs = 1
-        else:
-            n_final_outputs = len(args.output_name) * args.features if 'cov' not in args.output_name else len(args.output_name)  * args.features - 1
-        # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
-        output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
-        # covariance only has one
-       # if args.outputs > 5:
-        #    output_names = output_names[:-1]
-        if args.plot:
-            os.makedirs(args.path, exist_ok=True)
-            # plot_moments_distribution(train, output_names, path=args.path) # possibly we might want to add something relative to the experiments
-            if args.output_name == ["cov-var-function"]:
-                plot_2d_moments_dist_and_func(train, ['covariance', 'var', args.output_name], path=args.path)
+    train = SyntheticDataset(10000, args.sample_size, args.features, args.flatten, args.reshuffling, args.output_name, args.distribution, args.seed_dataset)
+    standardscaler = StandardScaler()
+    X = standardscaler.fit_transform(train.Xs.reshape((-1, train.Xs.shape[-1]))).reshape(train.Xs.shape)
+    train.Xs = X
+    test = SyntheticDataset(1000, args.sample_size, args.features, args.flatten, args.reshuffling, args.output_name, args.distribution, args.seed_dataset)
+    X = standardscaler.transform(test.Xs.reshape((-1, test.Xs.shape[-1]))).reshape(test.Xs.shape)
+    test.Xs = X
+    num_workers = 1
+    n_dists = 1
+    if args.output_name == ['cov-var-function']:
+        n_final_outputs = 1
+    else:
+        n_final_outputs = len(args.output_name) * args.features if 'cov' not in args.output_name else len(args.output_name)  * args.features - 1
+    # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
+    output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
+    # covariance only has one
+    # if args.outputs > 5:
+    #    output_names = output_names[:-1]
+    if args.plot:
+        os.makedirs(args.path, exist_ok=True)
+        # plot_moments_distribution(train, output_names, path=args.path) # possibly we might want to add something relative to the experiments
+        if args.output_name == ["cov-var-function"]:
+            plot_2d_moments_dist_and_func(train, ['covariance', 'var', args.output_name], path=args.path)
     train_generator = DataLoader(train,
                                     batch_size=args.batch_size,
                                     shuffle=True,
