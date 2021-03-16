@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import os
 from scipy.special import logsumexp
 import math
+from sklearn.preprocessing import StandardScaler
 
 
 #from .src.dataset import FullLargeDataset
@@ -180,6 +181,7 @@ class SyntheticDataset(Dataset):
             #y = [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel()][:n_outputs]
             y = np.concatenate(y).ravel()
             self.ys.append(y)
+        self.Xs = np.array(self.Xs)
 
     def __getitem__(self, index):
         return self.Xs[index], self.ys[index], np.arange(self.ys[index].shape[0]).reshape(-1, 1)
@@ -320,6 +322,15 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
     print(device)
     print(classification)
     model = model.to(device)
+    
+    # for p in model.parameters():
+    #     param_norm = p.grad.data.norm(2)
+    #     print(param_norm.item())
+    #     print(p.grad.data)
+    #     total_norm += param_norm.item() ** 2
+    # total_norm = total_norm ** (1. / 2)
+    # print('norm', total_norm)
+
     if use_wandb and plot_gradients:
         wandb.watch(model, log='all')
     # by default, reduction = mean when multiple outputs
@@ -342,7 +353,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             assert preds.shape == y.shape, "{} {}".format(preds.shape, y.shape)
             loss_elements = criterion(preds, y)
             loss = loss_elements.mean()
-            print(model(x, lengths).shape, y.shape)
+            # print(model(x, lengths).shape, y.shape)
             if np.isnan(loss.detach().cpu().numpy()):
                 raise ValueError("Train loss is nan: ", loss)
             train_aux.append(loss.detach().cpu().numpy())
@@ -351,8 +362,8 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                 wandb.log({f"{name} train loss per step": loss}, step=step)
             if len(outputs) > 1:
                 outputs_loss = loss_elements.mean(dim=0)
-                print(outputs)
-                print(outputs_loss)
+                # print(outputs)
+                # print(outputs_loss)
                 assert len(outputs) == len(outputs_loss)
                 per_output_loss = outputs_loss
                 if use_wandb:
@@ -473,12 +484,17 @@ if __name__ == "__main__":
         output_names = ['hematocrit']
     else:
         train = SyntheticDataset(args.train_size, args.sample_size, args.features, args.output_name, args.distribution, args.seed_dataset)
+        standardscaler = StandardScaler()
+        X = standardscaler.fit_transform(train.Xs.reshape((-1, train.Xs.shape[-1]))).reshape(train.Xs.shape)
+        train.Xs = X
         test = SyntheticDataset(1000, args.sample_size, args.features,args.output_name, args.distribution, args.seed_dataset)
+        X = standardscaler.transform(test.Xs.reshape((-1, test.Xs.shape[-1]))).reshape(test.Xs.shape)
+        test.Xs = X
         num_workers = 1
         n_dists = 1
         if args.output_name == ['cov-var-function']:
             n_final_outputs = 1
-        elif args.output_name == 'cov-var':
+        elif args.output_name == ['cov-var']:
             n_final_outputs = 3
         else:
             n_final_outputs = len(args.output_name) * args.features if 'cov' not in args.output_name else len(args.output_name)  * args.features - 1
@@ -523,7 +539,6 @@ if __name__ == "__main__":
         model_unit = BasicDeepSetMean
         n_inputs = args.features
      
-
     model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers).to(device) 
                             for i in range(num_models)], n_outputs=n_final_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
     print(model)
@@ -538,7 +553,7 @@ if __name__ == "__main__":
     # only one output, not one per feature
     elif args.output_name == ['cov-var-function']:
         output_names = [args.output_name]
-    elif args.output_name == 'cov-var':
+    elif args.output_name == ['cov-var']:
         output_names = ['var0', 'var1', 'cov']
     else:
         output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
