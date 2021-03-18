@@ -31,6 +31,8 @@ import numpy as np
 from synthetic import train_nn
 from scipy.special import logsumexp
 
+from utils import str_to_bool_arg
+
 
 class MLP_aggr(nn.Module):
     def __init__(self, n_inputs=2, n_outputs=1, n_samples=1000, n_enc_layers=4, n_hidden_units=64, n_dec_layers=1):
@@ -322,10 +324,10 @@ if __name__ == "__main__":
     parser.add_argument('-on', '--output_name', metavar='N', type=str, nargs='+',
                     help='a list of strings denoting the output types')
     parser.add_argument('--name', type=str)
-    parser.add_argument('--flatten', action='store_true')
+    parser.add_argument('--flatten', default='false', type=str)
     parser.add_argument('--plot', action='store_true')
-    parser.add_argument('--layer_norm', action='store_true')
-    parser.add_argument('--batch_norm', action='store_true')
+    parser.add_argument('--layer_norm', default='false', type=str)
+    parser.add_argument('--batch_norm', default='false', type=str)
     parser.add_argument('--seed_weights', default=0, type=int)
     parser.add_argument('--seed_dataset', default=0, type=int)
     parser.add_argument('--reshuffling', default=10, type=int)
@@ -334,6 +336,10 @@ if __name__ == "__main__":
     parser.add_argument('--wandb_test', action='store_true')
     args = parser.parse_args()
     
+    flatten = str_to_bool_arg(args.flatten, 'flatten')
+    layer_norm = str_to_bool_arg(args.layer_norm, 'layer_norm')
+    batch_norm = str_to_bool_arg(args.batch_norm, 'batch_norm')
+
     if args.wandb_test:
         wandb.init(project='wandb_test')
     else:
@@ -341,11 +347,11 @@ if __name__ == "__main__":
             wandb.init(project='synthetic-moments1', name=args.name)
         else:
             wandb.init(project='synthetic-moments1')
-    train = SyntheticDataset(10000, args.sample_size, args.features, args.flatten, args.reshuffling, args.output_name, args.distribution, args.seed_dataset)
+    train = SyntheticDataset(10000, args.sample_size, args.features, flatten, args.reshuffling, args.output_name, args.distribution, args.seed_dataset)
     standardscaler = StandardScaler()
     X = standardscaler.fit_transform(train.Xs.reshape((-1, train.Xs.shape[-1]))).reshape(train.Xs.shape)
     train.Xs = X
-    test = SyntheticDataset(1000, args.sample_size, args.features, args.flatten, args.reshuffling, args.output_name, args.distribution, args.seed_dataset)
+    test = SyntheticDataset(1000, args.sample_size, args.features, flatten, args.reshuffling, args.output_name, args.distribution, args.seed_dataset)
     X = standardscaler.transform(test.Xs.reshape((-1, test.Xs.shape[-1]))).reshape(test.Xs.shape)
     test.Xs = X
     num_workers = 1
@@ -380,7 +386,7 @@ if __name__ == "__main__":
     n_outputs = len(args.output_name)
     num_models = n_outputs * args.output_multiplier
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    if args.flatten:
+    if flatten:
         model = MLP(n_inputs=args.features*args.sample_size, n_hidden_units=args.hidden_units, n_layers=args.enc_layers, n_outputs=n_final_outputs)
     else:
         model =  MLP_aggr(n_inputs=args.features, n_outputs=n_final_outputs, n_samples=args.sample_size, n_enc_layers=args.enc_layers, 

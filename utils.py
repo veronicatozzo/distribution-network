@@ -99,3 +99,15 @@ def read_id_file(id_file):
     with open(id_file, 'rb') as f:
         to_read = pkl.load(f)
     return to_read['train'], to_read['test']
+
+def str_to_bool_arg(arg, name):
+    """ wandb can't accept bool arguments in argparse, so we 
+        use str arguments and translate into bool for downstream code use
+    """
+    if arg.lower() == 'true':
+        value = True
+    elif arg.lower() == 'false':
+        value = False
+    else:
+        raise ValueError(f"Argument {name} is unaccepted value {arg}")
+    return value

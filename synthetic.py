@@ -17,6 +17,8 @@ from scipy.special import logsumexp
 import math
 from sklearn.preprocessing import StandardScaler
 
+from utils import str_to_bool_arg
+
 
 #from .src.dataset import FullLargeDataset
 
@@ -454,8 +456,8 @@ if __name__ == "__main__":
     parser.add_argument('--name', type=str)
     parser.add_argument('--hematocrit', action='store_true')
     parser.add_argument('--plot', action='store_true')
-    parser.add_argument('--layer_norm', action='store_true')
-    parser.add_argument('--batch_norm', action='store_true')
+    parser.add_argument('--layer_norm', default='false', type=str)
+    parser.add_argument('--batch_norm', default='false', type=str)
     parser.add_argument('--seed_weights', default=0, type=int)
     parser.add_argument('--seed_dataset', default=0, type=int)
     parser.add_argument('--distribution', default='normal', help='normal|gamma|t', type=str)
@@ -466,6 +468,9 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', default=100, type=int)
     parser.add_argument('--train_size', default=10000, type=int)
     args = parser.parse_args()
+
+    layer_norm = str_to_bool_arg(args.layer_norm, 'layer_norm')
+    batch_norm = str_to_bool_arg(args.batch_norm, 'batch_norm')
     
     if args.wandb_test:
         wandb.init(project='wandb_test')
@@ -549,7 +554,7 @@ if __name__ == "__main__":
         model_unit = BasicDeepSetMean
         n_inputs = args.features
      
-    model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=args.layer_norm, bn=args.batch_norm).to(device) 
+    model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm).to(device) 
                             for i in range(num_models)], n_outputs=n_final_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
     print(model)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
