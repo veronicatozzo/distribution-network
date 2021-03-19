@@ -16,8 +16,9 @@ import os
 from scipy.special import logsumexp
 import math
 from sklearn.preprocessing import StandardScaler
+from statsmodels.distributions.empirical_distribution import ECDF
 
-from utils import str_to_bool_arg
+from utils import str_to_bool_arg, QuantileScaler
 
 
 #from .src.dataset import FullLargeDataset
@@ -499,12 +500,20 @@ if __name__ == "__main__":
         output_names = ['hematocrit']
     else:
         train = SyntheticDataset(args.train_size, args.sample_size, args.features, args.output_name, args.distribution, args.seed_dataset)
-        standardscaler = StandardScaler()
-        X = standardscaler.fit_transform(train.Xs.reshape((-1, train.Xs.shape[-1]))).reshape(train.Xs.shape)
-        train.Xs = X
+        # standardscaler = StandardScaler()
+        # X = standardscaler.fit_transform(train.Xs.reshape((-1, train.Xs.shape[-1]))).reshape(train.Xs.shape)
+        # train.Xs = X
+        X = train.Xs.reshape((-1, train.Xs.shape[-1]))
+        quantile_scaler = QuantileScaler()
+        X_new = quantile_scaler.fit_transform(X)
+        train.Xs = X_new.reshape(train.Xs.shape)
         test = SyntheticDataset(1000, args.sample_size, args.features,args.output_name, args.distribution, args.seed_dataset)
-        X = standardscaler.transform(test.Xs.reshape((-1, test.Xs.shape[-1]))).reshape(test.Xs.shape)
-        test.Xs = X
+        # X = standardscaler.transform(test.Xs.reshape((-1, test.Xs.shape[-1]))).reshape(test.Xs.shape)
+        # test.Xs = X
+        X = test.Xs.reshape((-1, test.Xs.shape[-1]))
+        X_new = quantile_scaler.transform(X)
+        test.Xs = X_new.reshape(test.Xs.shape)
+
         num_workers = 1
         n_dists = 1
         if args.output_name == ['cov-var-function']:
