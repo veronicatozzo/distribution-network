@@ -576,7 +576,13 @@ if __name__ == "__main__":
         activation = nn.ReLU
     elif args.activation == 'elu':
         activation = nn.ELU
-    model = model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation).to(device)
+
+    if args.output_name == ['cov-var-function'] or args.output_name == ['cov']:
+        n_outputs = 1
+    else:
+        n_outputs = args.features
+    model = model_unit(n_inputs=n_inputs, n_outputs=n_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation).to(device)
+    
     print(model)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
