@@ -176,7 +176,7 @@ class SyntheticDataset(Dataset):
                 elif output_name == 'quantiles_0.9':
                     y += [quantiles[16:18]]
                 elif output_name == 'cov':
-                    y += [covariances]
+                    y += [covariances.ravel()]
                 elif output_name == 'cov-var-function':
                     y += [np.square(covariances)/2 * logsumexp(stds, axis=0).ravel()]
                 elif output_name == 'cov-var':
@@ -188,6 +188,7 @@ class SyntheticDataset(Dataset):
             y = np.concatenate(y).ravel()
             self.ys.append(y)
         self.Xs = np.array(self.Xs)
+        self.ys = np.array(self.ys)
 
     def __getitem__(self, index):
         return self.Xs[index], self.ys[index], np.arange(self.ys[index].shape[0]).reshape(-1, 1)
@@ -471,6 +472,7 @@ if __name__ == "__main__":
     parser.add_argument('--distribution', default='normal', help='normal|gamma|t', type=str)
     parser.add_argument('-a', '--activation', default='relu', help='relu|elu', type=str)
     parser.add_argument('-m', '--model', default='deepsets', type=str, help='deepsets|settransformer|deepsamples')
+    parser.add_argument('--ensemble_network', default='false', type=str)
     parser.add_argument('--path', default='distribution_plots/', type=str)
     parser.add_argument('--wandb_test', action='store_true')
     parser.add_argument('--cpu', action='store_true')
@@ -481,6 +483,7 @@ if __name__ == "__main__":
     layer_norm = str_to_bool_arg(args.layer_norm, 'layer_norm')
     batch_norm = str_to_bool_arg(args.batch_norm, 'batch_norm')
     mean_center = str_to_bool_arg(args.mean_center, 'mean_center')
+    ensemble_network = str_to_bool_arg(args.ensemble_network, 'ensemble_network')
     
     if args.wandb_test:
         wandb.init(project='wandb_test')
@@ -577,12 +580,19 @@ if __name__ == "__main__":
     elif args.activation == 'elu':
         activation = nn.ELU
 
-    if args.output_name == ['cov-var-function'] or args.output_name == ['cov']:
-        n_outputs = 1
-    else:
-        n_outputs = args.features
-    model = model_unit(n_inputs=n_inputs, n_outputs=n_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation).to(device)
+    n_outputs = 0
+    for output_name in args.output_name:
+        if output_name in ['cov', 'cov-var-function']:
+            n_outputs += 1
+        else:
+            n_outputs += args.features
     
+    if ensemble_network:
+        model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm).to(device) 
+                            for i in range(num_models)], n_outputs=n_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
+    else:
+        model = model_unit(n_inputs=n_inputs, n_outputs=n_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation).to(device)
+
     print(model)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
