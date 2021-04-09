@@ -199,7 +199,7 @@ class SyntheticDataset(Dataset):
 
 class BasicDeepSet(nn.Module):
     def __init__(self, n_inputs=2, n_outputs=1, n_enc_layers=4, n_hidden_units=64, n_dec_layers=1, 
-                 multiplication=True,ln=False, bn=False, activation=nn.ReLU, **kwargs):
+                 multiplication=True,ln=False, bn=False, activation=nn.ReLU, instance_norm=False, n_samples=1000, **kwargs):
         super().__init__()
         enc_layers = []
         # enc_layers.append(nn.Linear(in_features=n_inputs, out_features=n_hidden_units))
@@ -215,7 +215,9 @@ class BasicDeepSet(nn.Module):
             if ln:
                 enc_layers.append(nn.LayerNorm(n_hidden_units))
             if bn:
-                enc_layers.append(nn.BatchNorm1d(n_hidden_units))
+                enc_layers.append(nn.BatchNorm1d(n_samples))
+            if instance_norm:
+                enc_layers.append(nn.InstanceNorm1d(n_samples))
             enc_layers.append(activation())
         # remove last relu
         enc_layers = enc_layers[:-1]
@@ -233,7 +235,9 @@ class BasicDeepSet(nn.Module):
                 if ln:
                     dec_layers.append(nn.LayerNorm(n_hidden_units))
                 if bn:
-                    dec_layers.append(nn.BatchNorm1d(n_hidden_units))
+                    dec_layers.append(nn.BatchNorm1d(n_samples))
+                if instance_norm:
+                    dec_layers.append(nn.InstanceNorm1d(n_samples))
                 dec_layers.append(activation())
         self.dec = nn.Sequential(*dec_layers)
         self.multiplication=multiplication
@@ -469,6 +473,7 @@ if __name__ == "__main__":
     parser.add_argument('--plot', action='store_true')
     parser.add_argument('--layer_norm', default='false', type=str)
     parser.add_argument('--batch_norm', default='false', type=str)
+    parser.add_argument('--instance_norm', default='false', type=str)
     parser.add_argument('--mean_center', default='false', type=str)
     parser.add_argument('--seed_weights', default=0, type=int)
     parser.add_argument('--seed_dataset', default=0, type=int)
@@ -485,10 +490,10 @@ if __name__ == "__main__":
 
     layer_norm = str_to_bool_arg(args.layer_norm, 'layer_norm')
     batch_norm = str_to_bool_arg(args.batch_norm, 'batch_norm')
+    instance_norm = str_to_bool_arg(args.instance_norm, 'instance_norm')
     mean_center = str_to_bool_arg(args.mean_center, 'mean_center')
     ensemble_network = str_to_bool_arg(args.ensemble_network, 'ensemble_network')
-    if not args.wandb_test:
-        args.output_name = args.output_name.split()
+    args.output_name = args.output_name.split()
     
     if args.wandb_test:
         wandb.init(project='wandb_test')
@@ -593,10 +598,10 @@ if __name__ == "__main__":
             n_outputs += args.features
     
     if ensemble_network:
-        model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation).to(device) 
+        model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size).to(device) 
                             for i in range(num_models)], n_outputs=n_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
     else:
-        model = model_unit(n_inputs=n_inputs, n_outputs=n_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation).to(device)
+        model = model_unit(n_inputs=n_inputs, n_outputs=n_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size).to(device)
 
     print(model)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
