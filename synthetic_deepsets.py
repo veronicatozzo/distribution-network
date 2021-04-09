@@ -211,11 +211,11 @@ class BasicDeepSet(nn.Module):
             if i == 0:
                 enc_layers.append(nn.Linear(in_features=n_inputs, out_features=n_hidden_units))
             else:
-                if ln:
-                    enc_layers.append(nn.LayerNorm(n_hidden_units))
-                if bn:
-                    enc_layers.append(nn.BatchNorm1d(n_hidden_units))
                 enc_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
+            if ln:
+                enc_layers.append(nn.LayerNorm(n_hidden_units))
+            if bn:
+                enc_layers.append(nn.BatchNorm1d(n_hidden_units))
             enc_layers.append(activation())
         # remove last relu
         enc_layers = enc_layers[:-1]
@@ -229,11 +229,11 @@ class BasicDeepSet(nn.Module):
             if i == n_dec_layers - 1:
                 dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_outputs))
             else:
+                dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
                 if ln:
                     dec_layers.append(nn.LayerNorm(n_hidden_units))
                 if bn:
                     dec_layers.append(nn.BatchNorm1d(n_hidden_units))
-                dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
                 dec_layers.append(activation())
         self.dec = nn.Sequential(*dec_layers)
         self.multiplication=multiplication
@@ -274,7 +274,7 @@ class BasicDeepSetSum(BasicDeepSet):
 
     
 class EnsembleNetwork(nn.Module):
-    def __init__(self, models, n_outputs=1, n_hidden_outputs=1, n_inputs=1, n_dist=1, layers=1, multi_input=False, device='cpu:0'):
+    def __init__(self, models, n_outputs=1, n_hidden_outputs=1, n_inputs=1, n_dist=1, layers=1, multi_input=False, device='cpu:0', activation=nn.ReLU()):
         super(EnsembleNetwork, self).__init__()
         self.models = nn.ModuleList(models)
         self.multi_input = multi_input
@@ -459,8 +459,11 @@ if __name__ == "__main__":
     # greater than 1 currently doesn't work
     #parser.add_argument('-o', '--outputs', default=1, type=int)  # total outputs will be outputs * features
     parser.add_argument('-om', '--output_multiplier', default=1, type=int)  # total features before linear layer will be outputs * features * om
-    parser.add_argument('-on', '--output_name', metavar='N', type=str, nargs='+',
-                    help='a list of strings denoting the output types')
+    # parser.add_argument('-on', '--output_name', metavar='N', type=str, nargs='+',
+    #                     help='a list of strings denoting the output types')
+    # since wandb can't handle multi-outputs; to use on multiple outputs: -on "mean var cov"
+    parser.add_argument('-on', '--output_name', type=str,
+                        help='a list of strings denoting the output types')
     parser.add_argument('--name', type=str)
     parser.add_argument('--hematocrit', action='store_true')
     parser.add_argument('--plot', action='store_true')
@@ -484,6 +487,8 @@ if __name__ == "__main__":
     batch_norm = str_to_bool_arg(args.batch_norm, 'batch_norm')
     mean_center = str_to_bool_arg(args.mean_center, 'mean_center')
     ensemble_network = str_to_bool_arg(args.ensemble_network, 'ensemble_network')
+    if not args.wandb_test:
+        args.output_name = args.output_name.split()
     
     if args.wandb_test:
         wandb.init(project='wandb_test')
@@ -588,7 +593,7 @@ if __name__ == "__main__":
             n_outputs += args.features
     
     if ensemble_network:
-        model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm).to(device) 
+        model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation).to(device) 
                             for i in range(num_models)], n_outputs=n_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
     else:
         model = model_unit(n_inputs=n_inputs, n_outputs=n_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation).to(device)
