@@ -199,8 +199,11 @@ class SyntheticDataset(Dataset):
 
 class BasicDeepSet(nn.Module):
     def __init__(self, n_inputs=2, n_outputs=1, n_enc_layers=4, n_hidden_units=64, n_dec_layers=1, 
-                 multiplication=True,ln=False, bn=False, activation=nn.ReLU, instance_norm=False, n_samples=1000, **kwargs):
+                 multiplication=True,ln=False, bn=False, activation=nn.ReLU, instance_norm=False, sample_norm=False, n_samples=1000, **kwargs):
+        """ Note: sample_norm = True first tranposes the data so that the sample_dim is last to reuse existing norm implementations """
         super().__init__()
+        if sample_norm and any([bn, ln, instance_norm]):
+            raise ValueError("Cannot have sample_norm and other norms")
         enc_layers = []
         # enc_layers.append(nn.Linear(in_features=n_inputs, out_features=n_hidden_units))
         # for i in range(n_enc_layers - 1):
@@ -209,14 +212,20 @@ class BasicDeepSet(nn.Module):
         #         enc_layers.append(activation())
         for i in range(n_enc_layers):
             if i == 0:
-                enc_layers.append(nn.Linear(in_features=n_inputs, out_features=n_hidden_units))
+                if sample_norm:
+                    enc_layers.append(nn.ConvTranspose1d(n_inputs, n_hidden_units, 1))
+                else:
+                    enc_layers.append(nn.Linear(in_features=n_inputs, out_features=n_hidden_units))
             else:
-                enc_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
+                if sample_norm:
+                    enc_layers.append(nn.ConvTranspose1d(n_hidden_units, n_hidden_units, 1))
+                else:
+                    enc_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
             if ln:
                 enc_layers.append(nn.LayerNorm(n_hidden_units))
             if bn:
                 enc_layers.append(nn.BatchNorm1d(n_samples))
-            if instance_norm:
+            if instance_norm or sample_norm:
                 enc_layers.append(nn.InstanceNorm1d(n_samples))
             enc_layers.append(activation())
         # remove last relu
@@ -234,33 +243,41 @@ class BasicDeepSet(nn.Module):
                 dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
                 if ln:
                     dec_layers.append(nn.LayerNorm(n_hidden_units))
-                if bn:
-                    dec_layers.append(nn.BatchNorm1d(n_samples))
-                if instance_norm:
-                    dec_layers.append(nn.InstanceNorm1d(n_samples))
                 dec_layers.append(activation())
         self.dec = nn.Sequential(*dec_layers)
         self.multiplication=multiplication
+        self.sample_norm = sample_norm
 
     def forward(self, x):
         if len(x.shape) == 4 and x.shape[1] > 1:
             encoded = []
             for j in range(x.shape[1]):
                 a = x[:, j, :, :].squeeze(1)
-                encoded.append(self.enc(a))
+                if self.sample_norm:
+                    encoded.append(self.enc(torch.transpose(a, 1, 2)))
+                else:
+                    encoded.append(self.enc(a))
             x = torch.cat(encoded, 1)
         else:
             x = x.squeeze(1)
-            out = self.enc(x)
+            if self.sample_norm:
+                out = self.enc(torch.transpose(x, 1, 2))
+            else:
+                out = self.enc(x)
             #x = torch.mul(x, out)
         return out
     
 class BasicDeepSetMean(BasicDeepSet):
     def forward(self, x, length=None):
 #         x = super().forward(x)
-        x = self.enc(x)
+        if self.sample_norm:
+            x = self.enc(torch.transpose(x, 1, 2))
+        else:
+            x = self.enc(x)
         if self.multiplication:
             x = torch.mul(x, x)
+        if self.sample_norm:
+            x = torch.transpose(x, 1, 2)
         x = x.mean(dim=-2)
         x = self.dec(x)
         return x
@@ -269,9 +286,14 @@ class BasicDeepSetMean(BasicDeepSet):
 class BasicDeepSetSum(BasicDeepSet):
     def forward(self, x, length=None):
 #         x = super().forward(x)
-        x = self.enc(x)
+        if self.sample_norm:
+            x = self.enc(torch.transpose(x, 1, 2))
+        else:
+            x = self.enc(x)
         if self.multiplication:
             x = torch.mul(x, x)
+        if self.sample_norm:
+            x = torch.transpose(x, 1, 2)
         x = x.sum(dim=-2)
         x = self.dec(x)
         return x
@@ -474,6 +496,7 @@ if __name__ == "__main__":
     parser.add_argument('--layer_norm', default='false', type=str)
     parser.add_argument('--batch_norm', default='false', type=str)
     parser.add_argument('--instance_norm', default='false', type=str)
+    parser.add_argument('--sample_norm', default='false', type=str)
     parser.add_argument('--mean_center', default='false', type=str)
     parser.add_argument('--seed_weights', default=0, type=int)
     parser.add_argument('--seed_dataset', default=0, type=int)
@@ -491,6 +514,7 @@ if __name__ == "__main__":
     layer_norm = str_to_bool_arg(args.layer_norm, 'layer_norm')
     batch_norm = str_to_bool_arg(args.batch_norm, 'batch_norm')
     instance_norm = str_to_bool_arg(args.instance_norm, 'instance_norm')
+    sample_norm = str_to_bool_arg(args.sample_norm, 'sample_norm')
     mean_center = str_to_bool_arg(args.mean_center, 'mean_center')
     ensemble_network = str_to_bool_arg(args.ensemble_network, 'ensemble_network')
     args.output_name = args.output_name.split()
@@ -598,10 +622,10 @@ if __name__ == "__main__":
             n_outputs += args.features
     
     if ensemble_network:
-        model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size).to(device) 
+        model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size, sample_norm=sample_norm).to(device) 
                             for i in range(num_models)], n_outputs=n_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
     else:
-        model = model_unit(n_inputs=n_inputs, n_outputs=n_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size).to(device)
+        model = model_unit(n_inputs=n_inputs, n_outputs=n_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size, sample_norm=sample_norm).to(device)
 
     print(model)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
