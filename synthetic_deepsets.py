@@ -121,9 +121,6 @@ class SyntheticDataset(Dataset):
             elif distribution == "gamma":
                 X = np.random.RandomState(random_state).gamma(np.random.randint(1, 30, size=self.n_dim), np.random.randint(1, 30, size=self.n_dim), size=(self.n_samples, self.n_dim))
             
-            if mean_center:
-                X = X - np.mean(X, axis=0)
-            self.Xs.append(X)
             X2 = X**2
             means2 = np.mean(X2, axis=0)
             means = np.mean(X, axis=0)
@@ -137,6 +134,10 @@ class SyntheticDataset(Dataset):
             if self.n_dim > 1:
                 covariances = np.array(empirical_covariance(X)[0, 1]).reshape(1, 1)
             quantiles = np.quantile(X, np.arange(.1, 1, .1), axis=0).ravel()
+
+            if mean_center:
+                X = X - np.mean(X, axis=0)
+                self.Xs.append(X)
             
             # y = [means2.ravel(), means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()][:n_outputs]
             # y = [np.square(stds.ravel()), means2.ravel(), means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()][:n_outputs]
@@ -225,8 +226,11 @@ class BasicDeepSet(nn.Module):
                 enc_layers.append(nn.LayerNorm(n_hidden_units))
             if bn:
                 enc_layers.append(nn.BatchNorm1d(n_samples))
-            if instance_norm or sample_norm:
+            if instance_norm:
                 enc_layers.append(nn.InstanceNorm1d(n_samples))
+            if sample_norm:
+                if i == 0:
+                    enc_layers.append(nn.InstanceNorm1d(n_hidden_units, affine=True))
             enc_layers.append(activation())
         # remove last relu
         enc_layers = enc_layers[:-1]
@@ -254,14 +258,14 @@ class BasicDeepSet(nn.Module):
             for j in range(x.shape[1]):
                 a = x[:, j, :, :].squeeze(1)
                 if self.sample_norm:
-                    encoded.append(self.enc(torch.transpose(a, 1, 2)))
+                    encoded.append(torch.transpose(self.enc(torch.transpose(a, 1, 2)), 1, 2))
                 else:
                     encoded.append(self.enc(a))
             x = torch.cat(encoded, 1)
         else:
             x = x.squeeze(1)
             if self.sample_norm:
-                out = self.enc(torch.transpose(x, 1, 2))
+                out = torch.transpose(self.enc(torch.transpose(x, 1, 2)), 1, 2)
             else:
                 out = self.enc(x)
             #x = torch.mul(x, out)
