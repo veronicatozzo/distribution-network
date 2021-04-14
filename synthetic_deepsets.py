@@ -21,7 +21,7 @@ from statsmodels.distributions.empirical_distribution import ECDF
 from utils import str_to_bool_arg, QuantileScaler
 
 
-#from .src.dataset import FullLargeDataset
+from src.dataset import FullLargeDataset
 
 
 def plot_moments_distribution(train, outputs_names, path=''):
@@ -137,7 +137,7 @@ class SyntheticDataset(Dataset):
 
             if mean_center:
                 X = X - np.mean(X, axis=0)
-                self.Xs.append(X)
+            self.Xs.append(X)
             
             # y = [means2.ravel(), means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()][:n_outputs]
             # y = [np.square(stds.ravel()), means2.ravel(), means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()][:n_outputs]
@@ -502,6 +502,7 @@ if __name__ == "__main__":
     parser.add_argument('--instance_norm', default='false', type=str)
     parser.add_argument('--sample_norm', default='false', type=str)
     parser.add_argument('--mean_center', default='false', type=str)
+    parser.add_argument('--quantile_scaling', default='false', type=str)
     parser.add_argument('--seed_weights', default=0, type=int)
     parser.add_argument('--seed_dataset', default=0, type=int)
     parser.add_argument('--distribution', default='normal', help='normal|gamma|t', type=str)
@@ -521,6 +522,7 @@ if __name__ == "__main__":
     sample_norm = str_to_bool_arg(args.sample_norm, 'sample_norm')
     mean_center = str_to_bool_arg(args.mean_center, 'mean_center')
     ensemble_network = str_to_bool_arg(args.ensemble_network, 'ensemble_network')
+    quantile_scaling = str_to_bool_arg(args.quantile_scaling, 'quantile_scaling')
     args.output_name = args.output_name.split()
     
     if args.wandb_test:
@@ -546,23 +548,27 @@ if __name__ == "__main__":
         test = Dataset(test=True, **data_config)
         num_workers = 32
         n_dists = 5
-        n_final_outputs = args.outputs
+        n_final_outputs = 1
         output_names = ['hematocrit']
     else:
         train = SyntheticDataset(args.train_size, args.sample_size, args.features, args.output_name, args.distribution, args.seed_dataset, mean_center)
         # standardscaler = StandardScaler()
         # X = standardscaler.fit_transform(train.Xs.reshape((-1, train.Xs.shape[-1]))).reshape(train.Xs.shape)
         # train.Xs = X
-        # X = train.Xs.reshape((-1, train.Xs.shape[-1]))
-        # quantile_scaler = QuantileScaler()
-        # X_new = quantile_scaler.fit_transform(X)
-        # train.Xs = X_new.reshape(train.Xs.shape)
+        
+        if quantile_scaling:
+            X = train.Xs.reshape((-1, train.Xs.shape[-1]))
+            quantile_scaler = QuantileScaler()
+            X_new = quantile_scaler.fit_transform(X)
+            train.Xs = X_new.reshape(train.Xs.shape)
         test = SyntheticDataset(1000, args.sample_size, args.features,args.output_name, args.distribution, args.seed_dataset, mean_center)
         # X = standardscaler.transform(test.Xs.reshape((-1, test.Xs.shape[-1]))).reshape(test.Xs.shape)
         # test.Xs = X
-        # X = test.Xs.reshape((-1, test.Xs.shape[-1]))
-        # X_new = quantile_scaler.transform(X)
-        # test.Xs = X_new.reshape(test.Xs.shape)
+
+        if quantile_scaling:
+            X = test.Xs.reshape((-1, test.Xs.shape[-1]))
+            X_new = quantile_scaler.transform(X)
+            test.Xs = X_new.reshape(test.Xs.shape)
 
         num_workers = 1
         n_dists = 1
@@ -645,8 +651,11 @@ if __name__ == "__main__":
         output_names = [args.output_name]
     elif args.output_name == ['cov-var']:
         output_names = ['var0', 'var1', 'cov']
+    elif args.output_name == ['hematocrit']:
+        output_names = ['hematocrit']
     else:
         output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
+    print(output_names)
     model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
                                             train_generator, test_generator, n_epochs=args.epochs,
                                             outputs=output_names, use_wandb=True, plot_gradients=False, seed=args.seed_weights)
