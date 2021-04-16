@@ -116,6 +116,11 @@ class SyntheticDataset(Dataset):
             if distribution == "normal":
                 cov = make_spd_matrix(self.n_dim)
                 X = np.random.RandomState(random_state).multivariate_normal(np.random.randn(self.n_dim), cov, size=self.n_samples, check_valid='warn', tol=1e-8)
+            elif distribution == "normal-hard":
+                cov = make_spd_matrix(self.n_dim)
+                cov_scale = 5
+                mean_scale = 2
+                X = np.random.RandomState(random_state).multivariate_normal(np.random.randn(self.n_dim) * mean_scale, cov * cov_scale, size=self.n_samples, check_valid='warn', tol=1e-8)
             elif distribution == "t":
                 X = np.random.RandomState(random_state).standard_t(np.random.randint(10, 20, size=self.n_dim), size=(self.n_samples, self.n_dim))
             elif distribution == "gamma":
@@ -615,13 +620,13 @@ if __name__ == "__main__":
         else:
             n_final_outputs = len(args.output_name) * args.features if 'cov' not in args.output_name else len(args.output_name)  * args.features - 1
         # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
-        output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
+        # output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
         # covariance only has one
        # if args.outputs > 5:
         #    output_names = output_names[:-1]
         if args.plot:
             os.makedirs(args.path, exist_ok=True)
-            # plot_moments_distribution(train, output_names, path=args.path) # possibly we might want to add something relative to the experiments
+            plot_moments_distribution(train, args.output_name, path=args.path) # possibly we might want to add something relative to the experiments
             if args.output_name == ["cov-var-function"]:
                 plot_2d_moments_dist_and_func(train, ['covariance', 'var', args.output_name], path=args.path)
     train_generator = DataLoader(train,
