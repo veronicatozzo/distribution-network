@@ -27,8 +27,6 @@ from src.dataset import FullLargeDataset
 def plot_moments_distribution(train, outputs_names, path=''):
     X_tr, y_tr, lengths = zip(*[train[i] for i in range(len(train))])
     for i in range(len(outputs_names)):
-        print(np.array(y_tr).shape)
-        print(i)
         aux_x = [y_tr[j][i*2] for j in range(len(train))]
         aux_y = [y_tr[j][i*2+1] for j in range(len(train))]
         fig, ax = plt.subplots(1, 2, figsize=(10, 5))
