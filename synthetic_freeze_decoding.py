@@ -15,10 +15,6 @@ import matplotlib.pyplot as plt
 import os
 from scipy.special import logsumexp
 import math
-from sklearn.preprocessing import StandardScaler
-from statsmodels.distributions.empirical_distribution import ECDF
-
-from utils import str_to_bool_arg, QuantileScaler
 
 
 #from .src.dataset import FullLargeDataset
@@ -78,27 +74,71 @@ def plot_2d_moments_dist_and_func(train, output_names, path=''):
     y0s = ys[:,0]
     y1s = ys[:,1]
     feats = {'cov': xs, 'var0': y0s, 'var1': y1s}
-    plt.hist(zs)
-    plt.savefig('cov-var-function.png')
-    print(zs.min(), zs.max())
-    plt.clf()
-    print('mse', mean_squared_error(zs, zs.mean()))
-    import sys; sys.exit()
     import seaborn as sns
-    print(labels)
-    print(np.array(labels).shape)
-    print(max(labels) - min(labels))
-    print(np.array(labels).std())
-    plt.hist(labels)
-    plt.xscale('log')
-    plt.savefig(os.path.join(path, 'cov-var-function.png'))
-    plt.clf()
     for name0, name1 in itertools.combinations(feats.keys(), 2):
         print(name0, name1)
         sns.kdeplot(feats[name0], feats[name1], label='_'.join([name0, name1]))
         plt.legend()
         plt.savefig(os.path.join(path, f'{name0}_{name1}_dist.png'))
 
+
+
+class MLP(nn.Module):
+    def __init__(self, n_inputs, n_hidden_units, n_layers):
+        super(MLP, self).__init__()
+        layers = []
+        if n_layers == 1:
+            layers.append(nn.Linear(n_inputs, 1))
+        else:
+            for i in range(n_layers):
+                if i == 0:
+                    layers.append(nn.Linear(n_inputs, n_hidden_units))
+                elif i == n_layers - 1:
+                    layers.append(nn.Linear(n_hidden_units, 1))
+                else:
+                    layers.append(nn.Linear(n_hidden_units, n_hidden_units))
+                layers.append(nn.ReLU())
+            layers = layers[:-1]
+        self.layers = nn.Sequential(*layers)
+        
+    def forward(self, x, length=None):
+        return self.layers(x)
+        # return self.layers(x).reshape((-1, 1, 1, 1))
+
+class SyntheticMomentsDataset(Dataset):
+    def __init__(self, N=1000, n_samples=500, n_dim=2, output_names=None, distribution='normal', random_state=0):
+        self.N = N
+        self.n_samples = n_samples
+        self.n_dim = n_dim
+        self.Xs = []
+        self.ys = []
+        print('Dataset output', output_names)
+        for n in range(N):
+            x = []
+            y = []
+            #for d in range(n_distr):
+            if distribution == "normal":
+                cov = make_spd_matrix(self.n_dim)
+                X = np.random.RandomState(random_state).multivariate_normal(np.random.randn(self.n_dim), cov, size=self.n_samples, check_valid='warn', tol=1e-8)
+            elif distribution == "t":
+                X = np.random.RandomState(random_state).standard_t(np.random.randint(10, 20, size=self.n_dim), size=(self.n_samples, self.n_dim))
+            elif distribution == "gamma":
+                X = np.random.RandomState(random_state).gamma(np.random.randint(1, 30, size=self.n_dim), np.random.randint(1, 30, size=self.n_dim), size=(self.n_samples, self.n_dim))
+            stds = np.std(X, axis=0)
+            covariances = np.array(empirical_covariance(X)[0, 1]).reshape(1, 1)
+            moments = [np.square(stds.ravel()), covariances.ravel()]
+            moments = np.concatenate(moments).ravel()
+            self.Xs.append(np.array(moments))
+            y = [np.square(covariances)/2 * logsumexp(stds, axis=0).ravel()]
+            self.ys.append(np.array(y))
+        # print('before', np.array(self.ys).shape)
+        self.ys = np.array(self.ys).reshape((-1, 1))
+        # print('after', self.ys.shape)
+    def __getitem__(self, index):
+        return self.Xs[index], self.ys[index], np.arange(len(self.ys[index])).reshape(-1, 1)
+        
+    def __len__(self):
+        return self.N
 
 
 class SyntheticDataset(Dataset):
@@ -175,16 +215,13 @@ class SyntheticDataset(Dataset):
                 elif output_name == 'cov':
                     y += [covariances]
                 elif output_name == 'cov-var-function':
-                    y += [np.square(covariances)/2 * logsumexp(stds, axis=0).ravel()]
-                elif output_name == 'cov-var':
-                    y += [np.square(stds.ravel()), covariances.ravel()]
+                    y = [np.square(covariances)/2 * logsumexp(stds, axis=0).ravel()]
                 # else:
                 # y += [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), medians.ravel(), covariances.ravel()][:n_outputs]
                 # y += [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel(), quantiles][:n_outputs]
             #y = [means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel(), covariances.ravel()][:n_outputs]
             y = np.concatenate(y).ravel()
             self.ys.append(y)
-        self.Xs = np.array(self.Xs)
 
     def __getitem__(self, index):
         return self.Xs[index], self.ys[index], np.arange(self.ys[index].shape[0]).reshape(-1, 1)
@@ -195,7 +232,7 @@ class SyntheticDataset(Dataset):
 
 class BasicDeepSet(nn.Module):
     def __init__(self, n_inputs=2, n_outputs=1, n_enc_layers=4, n_hidden_units=64, n_dec_layers=1, 
-                 multiplication=True,ln=False, bn=False, **kwargs):
+                 multiplication=True,**kwargs):
         super().__init__()
         enc_layers = []
         # enc_layers.append(nn.Linear(in_features=n_inputs, out_features=n_hidden_units))
@@ -207,10 +244,6 @@ class BasicDeepSet(nn.Module):
             if i == 0:
                 enc_layers.append(nn.Linear(in_features=n_inputs, out_features=n_hidden_units))
             else:
-                if ln:
-                    enc_layers.append(nn.LayerNorm(n_hidden_units))
-                if bn:
-                    enc_layers.append(nn.BatchNorm1d(n_hidden_units))
                 enc_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
             enc_layers.append(nn.ReLU())
         # remove last relu
@@ -225,10 +258,6 @@ class BasicDeepSet(nn.Module):
             if i == n_dec_layers - 1:
                 dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_outputs))
             else:
-                if ln:
-                    dec_layers.append(nn.LayerNorm(n_hidden_units))
-                if bn:
-                    dec_layers.append(nn.BatchNorm1d(n_hidden_units))
                 dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
             dec_layers.append(nn.ReLU())
         self.dec = nn.Sequential(*dec_layers)
@@ -333,15 +362,6 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
     print(device)
     print(classification)
     model = model.to(device)
-    
-    # for p in model.parameters():
-    #     param_norm = p.grad.data.norm(2)
-    #     print(param_norm.item())
-    #     print(p.grad.data)
-    #     total_norm += param_norm.item() ** 2
-    # total_norm = total_norm ** (1. / 2)
-    # print('norm', total_norm)
-
     if use_wandb and plot_gradients:
         wandb.watch(model, log='all')
     # by default, reduction = mean when multiple outputs
@@ -357,12 +377,12 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
     losses_ts = []
     dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
     for epoch in range(n_epochs):
+        print(epoch)
         train_aux = []
         for x, y, lengths in train_generator:
             x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
-            preds = model(x, lengths)
-            assert preds.shape == y.shape, "{} {}".format(preds.shape, y.shape)
-            loss_elements = criterion(preds, y)
+    
+            loss_elements = criterion(model(x, lengths), y)
             loss = loss_elements.mean()
             if np.isnan(loss.detach().cpu().numpy()):
                 raise ValueError("Train loss is nan: ", loss)
@@ -372,8 +392,8 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                 wandb.log({f"{name} train loss per step": loss}, step=step)
             if len(outputs) > 1:
                 outputs_loss = loss_elements.mean(dim=0)
-                # print(outputs)
-                # print(outputs_loss)
+                print(outputs)
+                print(outputs_loss)
                 assert len(outputs) == len(outputs_loss)
                 per_output_loss = outputs_loss
                 if use_wandb:
@@ -382,7 +402,6 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            preds = model(x, lengths)
             step += 1
             if step % 20 == 0:
                 # losses_tr.append(per_output_loss.detach().cpu().numpy())
@@ -431,7 +450,6 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                     if use_wandb:
                         wandb.run.summary["best_loss"] = test_loss
                     best_loss_ts = test_loss
-            #print(list(model.parameters())[4])
     return model, best_loss_tr, best_loss_ts, losses_tr, losses_ts
 
 if __name__ == "__main__":
@@ -457,21 +475,14 @@ if __name__ == "__main__":
     parser.add_argument('--name', type=str)
     parser.add_argument('--hematocrit', action='store_true')
     parser.add_argument('--plot', action='store_true')
-    parser.add_argument('--layer_norm', default='false', type=str)
-    parser.add_argument('--batch_norm', default='false', type=str)
     parser.add_argument('--seed_weights', default=0, type=int)
     parser.add_argument('--seed_dataset', default=0, type=int)
     parser.add_argument('--distribution', default='normal', help='normal|gamma|t', type=str)
     parser.add_argument('-m', '--model', default='deepsets', type=str, help='deepsets|settransformer|deepsamples')
     parser.add_argument('--path', default='distribution_plots/', type=str)
     parser.add_argument('--wandb_test', action='store_true')
-    parser.add_argument('--cpu', action='store_true')
     parser.add_argument('--epochs', default=100, type=int)
-    parser.add_argument('--train_size', default=10000, type=int)
     args = parser.parse_args()
-
-    layer_norm = str_to_bool_arg(args.layer_norm, 'layer_norm')
-    batch_norm = str_to_bool_arg(args.batch_norm, 'batch_norm')
     
     if args.wandb_test:
         wandb.init(project='wandb_test')
@@ -488,7 +499,7 @@ if __name__ == "__main__":
             # 'num_samples': args.num_samples,
             'num_subsamples': 1000,
             'permute_subsamples': False,
-            'normalizer': "all",
+            'normalizer': "none",
             'imputation': "zero"
         }
         Dataset = FullLargeDataset
@@ -499,27 +510,14 @@ if __name__ == "__main__":
         n_final_outputs = args.outputs
         output_names = ['hematocrit']
     else:
-        train = SyntheticDataset(args.train_size, args.sample_size, args.features, args.output_name, args.distribution, args.seed_dataset)
-        # standardscaler = StandardScaler()
-        # X = standardscaler.fit_transform(train.Xs.reshape((-1, train.Xs.shape[-1]))).reshape(train.Xs.shape)
-        # train.Xs = X
-        X = train.Xs.reshape((-1, train.Xs.shape[-1]))
-        quantile_scaler = QuantileScaler()
-        X_new = quantile_scaler.fit_transform(X)
-        train.Xs = X_new.reshape(train.Xs.shape)
+        train = SyntheticDataset(10000, args.sample_size, args.features, args.output_name, args.distribution, args.seed_dataset)
         test = SyntheticDataset(1000, args.sample_size, args.features,args.output_name, args.distribution, args.seed_dataset)
-        # X = standardscaler.transform(test.Xs.reshape((-1, test.Xs.shape[-1]))).reshape(test.Xs.shape)
-        # test.Xs = X
-        X = test.Xs.reshape((-1, test.Xs.shape[-1]))
-        X_new = quantile_scaler.transform(X)
-        test.Xs = X_new.reshape(test.Xs.shape)
-
+        train_moments = SyntheticMomentsDataset(10000, args.sample_size, args.features, args.output_name, args.distribution, args.seed_dataset)
+        test_moments = SyntheticMomentsDataset(1000, args.sample_size, args.features,args.output_name, args.distribution, args.seed_dataset)
         num_workers = 1
         n_dists = 1
         if args.output_name == ['cov-var-function']:
             n_final_outputs = 1
-        elif args.output_name == ['cov-var']:
-            n_final_outputs = 3
         else:
             n_final_outputs = len(args.output_name) * args.features if 'cov' not in args.output_name else len(args.output_name)  * args.features - 1
         # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
@@ -532,6 +530,55 @@ if __name__ == "__main__":
             # plot_moments_distribution(train, output_names, path=args.path) # possibly we might want to add something relative to the experiments
             if args.output_name == ["cov-var-function"]:
                 plot_2d_moments_dist_and_func(train, ['covariance', 'var', args.output_name], path=args.path)
+    
+    model = MLP(3, args.hidden_units, args.dec_layers+1)
+    # print(model)
+    # import sys; sys.exit()
+    optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, 
+                                                last_epoch=-1)
+    num_workers = 32
+    train_generator = DataLoader(train_moments,
+                                    batch_size=args.batch_size,
+                                    shuffle=True,
+                                    num_workers=num_workers,
+                                    pin_memory=False,
+                                    drop_last=True)
+    test_generator = DataLoader(test_moments,
+                            batch_size=args.batch_size,
+                            shuffle=True,
+                            num_workers=num_workers,
+                            pin_memory=False,
+                            drop_last=True)
+
+    model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'moments', optimizer, scheduler,   
+                                        train_generator, test_generator, n_epochs=args.epochs,
+                                        outputs=['cov-var-function'], use_wandb=False, 
+                                                                plot_gradients=False, seed=args.seed_weights) 
+
+    wandb.run.summary["moments_tr_loss"] = train_score
+    wandb.run.summary["moments_ts_loss"] = test_score
+    weights  = list(model.parameters())[1:]
+
+
+    n_outputs = len(args.output_name)
+    num_models = n_outputs * args.output_multiplier
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    if args.model == 'deepsets-sum':
+        model_unit = BasicDeepSetSum
+        n_inputs = args.features
+    else:
+        model_unit = BasicDeepSetMean
+        n_inputs = args.features
+     
+
+    model_samples = model_unit(n_inputs=n_inputs, n_outputs=n_final_outputs, n_enc_layers=args.enc_layers, 
+                        n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers).to(device) 
+    for param, w in zip(list(model_samples.parameters())[args.enc_layers+1:], weights):
+        param.requires_grad = False
+        param.data = w
+    
+    num_workers = 32
     train_generator = DataLoader(train,
                                     batch_size=args.batch_size,
                                     shuffle=True,
@@ -544,43 +591,18 @@ if __name__ == "__main__":
                             num_workers=num_workers,
                             pin_memory=False,
                             drop_last=True)
-
-    n_outputs = len(args.output_name)
-    num_models = n_outputs * args.output_multiplier
-    device = 'cpu' if args.cpu else torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    if args.model == 'settransformer':
-        model_unit = SmallSetTransformer
-        n_inputs = args.features
-    elif args.model == 'deepsamples':
-        model_unit = SmallDeepSamples
-        # n_inputs for deepsamples should actually be n_dists
-        # we code in this way to maintain compatibility with main.py
-        n_inputs = 1
-    elif args.model == 'deepsets-sum':
-        model_unit = BasicDeepSetSum
-        n_inputs = args.features
-    else:
-        model_unit = BasicDeepSetMean
-        n_inputs = args.features
-     
-    model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm).to(device) 
-                            for i in range(num_models)], n_outputs=n_final_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
-    print(model)
-    optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
+    optimizer = torch.optim.Adam(model_samples.parameters(),lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
 
     # output_names = list(itertools.product(['E(x^2) - E(x)^2', 'E(x^2)', 'E(x)', 'std', 'skew', 'kurtosis'][:args.outputs], range(args.features)))
     output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
-    # cov must be last in the list
     if 'cov' in args.output_name:
-        output_names = output_names[:-1]
+            output_names = output_names[:-1]
     # only one output, not one per feature
     elif args.output_name == ['cov-var-function']:
         output_names = [args.output_name]
-    elif args.output_name == ['cov-var']:
-        output_names = ['var0', 'var1', 'cov']
     else:
         output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
-    model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
+    model, train_score, test_score, losses_tr, losses_ts = train_nn(model_samples, 'samples', optimizer, scheduler, 
                                             train_generator, test_generator, n_epochs=args.epochs,
-                                            outputs=output_names, use_wandb=True, plot_gradients=False, seed=args.seed_weights)
+                                            outputs=output_names, use_wandb=True, plot_gradients=True, seed=args.seed_weights)

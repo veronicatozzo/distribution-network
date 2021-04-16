@@ -2,40 +2,49 @@ program: synthetic.py
 method: grid
 project: synthetic-moments2
 metric:
-    name: test_loss
+    name: best_loss
     goal: minimize
 parameters:
     seed_dataset:
-        values: [0, 1, 2]
+        values: [0]
     seed_weights:
-        values: [0, 1, 2]
+        values: [0]
     learning_rate:
-        values: [ .01, .001]
+        # values: [.1, .01, .001, .0001]
+        values: [.001, .0001]
     batch_size:
         values: [64]
     enc_layers:
-        values: [2]
+        values: [2, 3, 4]
     dec_layers:
-        values: [1]
+        values: [2, 3, 4]
+    # reshuffling:
+    #     values: [0, 10, 100]
+    # flatten:
+    #     values: ['true']
     output_layers:
         values: [1]  #, 2, 3]
     hidden_units:
-        values: [256]
+        values: [256, 512, 1024]
     step_size:
         values: [50000]  # so no effect
     gamma:
         values: [.1] #, .5, .9]
     sample_size:
-        values: [2, 10, 50, 100]  #, 1000]
+        values: [1000]
     features:
         values: [2]
     output_multiplier:
         values: [1] #, 2, 4]
     output_name:
-        values: ["var", "cov"]
+        # values: ["cov-var-function", "cov-var", "var", "cov", "skew", "kurtosis", "quantiles_0.5", "quantiles_0.2"]
+        values: ["cov-var-function", "cov-var", "var", "cov", "quantiles_0.5"]
     distribution:
         values: ["normal"]
     model:
-        values: ['deepsets-mean', 'deepsets-sum']
-    train_size:
-        values: [2, 100, 10000]
+        # values: ["deepsets-mean", "deepsets-sum", "set-transformer"]
+        values: ["deepsets-mean"]
+    epochs:
+        values: [1000]
+    # batch_norm:
+    #     values: ["true"]

@@ -21,7 +21,7 @@ from statsmodels.distributions.empirical_distribution import ECDF
 from utils import str_to_bool_arg, QuantileScaler
 
 
-#from .src.dataset import FullLargeDataset
+from src.dataset import FullLargeDataset
 
 
 def plot_moments_distribution(train, outputs_names, path=''):
@@ -102,7 +102,7 @@ def plot_2d_moments_dist_and_func(train, output_names, path=''):
 
 
 class SyntheticDataset(Dataset):
-    def __init__(self, N=1000, n_samples=500, n_dim=2, output_names=None, distribution='normal', random_state=0):
+    def __init__(self, N=1000, n_samples=500, n_dim=2, output_names=None, distribution='normal', random_state=0, mean_center=False):
         self.N = N
         self.n_samples = n_samples
         self.n_dim = n_dim
@@ -120,7 +120,8 @@ class SyntheticDataset(Dataset):
                 X = np.random.RandomState(random_state).standard_t(np.random.randint(10, 20, size=self.n_dim), size=(self.n_samples, self.n_dim))
             elif distribution == "gamma":
                 X = np.random.RandomState(random_state).gamma(np.random.randint(1, 30, size=self.n_dim), np.random.randint(1, 30, size=self.n_dim), size=(self.n_samples, self.n_dim))
-            self.Xs.append(X)
+            
+
             X2 = X**2
             means2 = np.mean(X2, axis=0)
             means = np.mean(X, axis=0)
@@ -134,6 +135,10 @@ class SyntheticDataset(Dataset):
             if self.n_dim > 1:
                 covariances = np.array(empirical_covariance(X)[0, 1]).reshape(1, 1)
             quantiles = np.quantile(X, np.arange(.1, 1, .1), axis=0).ravel()
+
+            if mean_center:
+                X = X - np.mean(X, axis=0)
+            self.Xs.append(X)
             
             # y = [means2.ravel(), means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()][:n_outputs]
             # y = [np.square(stds.ravel()), means2.ravel(), means.ravel(),stds.ravel(), skews.ravel(), kurtoses.ravel()][:n_outputs]
@@ -173,9 +178,11 @@ class SyntheticDataset(Dataset):
                 elif output_name == 'quantiles_0.9':
                     y += [quantiles[16:18]]
                 elif output_name == 'cov':
-                    y += [covariances]
+                    y += [covariances.ravel()]
                 elif output_name == 'cov-var-function':
                     y += [np.square(covariances)/2 * logsumexp(stds, axis=0).ravel()]
+                elif output_name == 'mean-cov-var-function':
+                    y += [np.square(covariances)/2 * logsumexp(stds, axis=0).ravel() + np.sum(means)]
                 elif output_name == 'cov-var':
                     y += [np.square(stds.ravel()), covariances.ravel()]
                 # else:
@@ -185,6 +192,7 @@ class SyntheticDataset(Dataset):
             y = np.concatenate(y).ravel()
             self.ys.append(y)
         self.Xs = np.array(self.Xs)
+        self.ys = np.array(self.ys)
 
     def __getitem__(self, index):
         return self.Xs[index], self.ys[index], np.arange(self.ys[index].shape[0]).reshape(-1, 1)
@@ -195,65 +203,122 @@ class SyntheticDataset(Dataset):
 
 class BasicDeepSet(nn.Module):
     def __init__(self, n_inputs=2, n_outputs=1, n_enc_layers=4, n_hidden_units=64, n_dec_layers=1, 
-                 multiplication=True,ln=False, bn=False, **kwargs):
+                 multiplication=True,ln=False, bn=False, activation=nn.ReLU, instance_norm=False, sample_norm=False, n_samples=1000, **kwargs):
+        """ Note: sample_norm = True first tranposes the data so that the sample_dim is last to reuse existing norm implementations """
         super().__init__()
+        if sample_norm and any([bn, ln, instance_norm]):
+            raise ValueError("Cannot have sample_norm and other norms")
         enc_layers = []
         # enc_layers.append(nn.Linear(in_features=n_inputs, out_features=n_hidden_units))
         # for i in range(n_enc_layers - 1):
         #     enc_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
         #     if i < n_enc_layers - 2:
-        #         enc_layers.append(nn.ReLU())
+        #         enc_layers.append(activation())
         for i in range(n_enc_layers):
             if i == 0:
-                enc_layers.append(nn.Linear(in_features=n_inputs, out_features=n_hidden_units))
+                if sample_norm:
+                    enc_layers.append(nn.ConvTranspose1d(n_inputs, n_hidden_units, 1))
+                else:
+                    enc_layers.append(nn.Linear(in_features=n_inputs, out_features=n_hidden_units))
             else:
-                if ln:
-                    enc_layers.append(nn.LayerNorm(n_hidden_units))
-                if bn:
-                    enc_layers.append(nn.BatchNorm1d(n_hidden_units))
-                enc_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
-            enc_layers.append(nn.ReLU())
+                if sample_norm:
+                    enc_layers.append(nn.ConvTranspose1d(n_hidden_units, n_hidden_units, 1))
+                else:
+                    enc_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
+            if ln:
+                enc_layers.append(nn.LayerNorm(n_hidden_units))
+            if bn:
+                enc_layers.append(nn.BatchNorm1d(n_samples))
+            if instance_norm:
+                enc_layers.append(nn.InstanceNorm1d(n_samples))
+            if sample_norm:
+                if i == 0:
+                    enc_layers.append(nn.InstanceNorm1d(n_hidden_units, affine=True))
+            enc_layers.append(activation())
         # remove last relu
         enc_layers = enc_layers[:-1]
         self.enc = nn.Sequential(*enc_layers)
         dec_layers = []
         # for i in range(n_dec_layers - 1):
         #     dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
-        #     dec_layers.append(nn.ReLU())
+        #     dec_layers.append(activation())
         # dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_outputs))
         for i in range(n_dec_layers):
             if i == n_dec_layers - 1:
                 dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_outputs))
             else:
+                dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
                 if ln:
                     dec_layers.append(nn.LayerNorm(n_hidden_units))
-                if bn:
-                    dec_layers.append(nn.BatchNorm1d(n_hidden_units))
-                dec_layers.append(nn.Linear(in_features=n_hidden_units, out_features=n_hidden_units))
-            dec_layers.append(nn.ReLU())
+                dec_layers.append(activation())
         self.dec = nn.Sequential(*dec_layers)
         self.multiplication=multiplication
+        self.sample_norm = sample_norm
 
     def forward(self, x):
         if len(x.shape) == 4 and x.shape[1] > 1:
             encoded = []
             for j in range(x.shape[1]):
                 a = x[:, j, :, :].squeeze(1)
-                encoded.append(self.enc(a))
+                if self.sample_norm:
+                    encoded.append(torch.transpose(self.enc(torch.transpose(a, 1, 2)), 1, 2))
+                else:
+                    encoded.append(self.enc(a))
             x = torch.cat(encoded, 1)
         else:
             x = x.squeeze(1)
-            out = self.enc(x)
+            if self.sample_norm:
+                out = torch.transpose(self.enc(torch.transpose(x, 1, 2)), 1, 2)
+            else:
+                out = self.enc(x)
             #x = torch.mul(x, out)
         return out
     
 class BasicDeepSetMean(BasicDeepSet):
     def forward(self, x, length=None):
 #         x = super().forward(x)
-        x = self.enc(x)
+        if self.sample_norm:
+            x = self.enc(torch.transpose(x, 1, 2))
+        else:
+            x = self.enc(x)
         if self.multiplication:
             x = torch.mul(x, x)
+        if self.sample_norm:
+            x = torch.transpose(x, 1, 2)
         x = x.mean(dim=-2)
+        x = self.dec(x)
+        return x
+
+class BasicDeepSetMeanRC(BasicDeepSet):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        dec_layers = []
+        for i in range(kwargs['n_dec_layers']):
+            if i == kwargs['n_dec_layers'] - 1:
+                dec_layers.append(nn.Linear(in_features=kwargs['n_hidden_units'] + kwargs['n_inputs'], out_features=kwargs['n_outputs']))
+            else:
+                dec_layers.append(nn.Linear(in_features=kwargs['n_hidden_units'] + kwargs['n_inputs'], out_features=kwargs['n_hidden_units'] + kwargs['n_inputs']))
+                if kwargs['ln']:
+                    dec_layers.append(nn.LayerNorm(kwargs['n_hidden_units'] + kwargs['n_inputs']))
+                dec_layers.append(kwargs['activation']())
+        self.dec = nn.Sequential(*dec_layers)
+
+    def forward(self, x, length=None):
+#         x = super().forward(x)
+        means = torch.mean(x, axis=1)
+        # print(means.shape)
+        x -= means.unsqueeze(1)
+        if self.sample_norm:
+            x = self.enc(torch.transpose(x, 1, 2))
+        else:
+            x = self.enc(x)
+        if self.multiplication:
+            x = torch.mul(x, x)
+        if self.sample_norm:
+            x = torch.transpose(x, 1, 2)
+        x = x.mean(dim=-2)
+        x = torch.cat([x, means], axis=1)  # [b, hidden + features_per_sample]
+        # print('x', x.shape)
         x = self.dec(x)
         return x
 
@@ -261,16 +326,21 @@ class BasicDeepSetMean(BasicDeepSet):
 class BasicDeepSetSum(BasicDeepSet):
     def forward(self, x, length=None):
 #         x = super().forward(x)
-        x = self.enc(x)
+        if self.sample_norm:
+            x = self.enc(torch.transpose(x, 1, 2))
+        else:
+            x = self.enc(x)
         if self.multiplication:
             x = torch.mul(x, x)
+        if self.sample_norm:
+            x = torch.transpose(x, 1, 2)
         x = x.sum(dim=-2)
         x = self.dec(x)
         return x
 
     
 class EnsembleNetwork(nn.Module):
-    def __init__(self, models, n_outputs=1, n_hidden_outputs=1, n_inputs=1, n_dist=1, layers=1, multi_input=False, device='cpu:0'):
+    def __init__(self, models, n_outputs=1, n_hidden_outputs=1, n_inputs=1, n_dist=1, layers=1, multi_input=False, device='cpu:0', activation=nn.ReLU()):
         super(EnsembleNetwork, self).__init__()
         self.models = nn.ModuleList(models)
         self.multi_input = multi_input
@@ -287,7 +357,7 @@ class EnsembleNetwork(nn.Module):
                     output_layers.append(nn.Linear(n_inputs, n_o))
                 else:
                     output_layers.append(nn.Linear(n_inputs, n_inputs))
-                output_layers.append(nn.ReLU())
+                output_layers.append(activation())
             # remove last non-linearity
             output_layers = output_layers[:-1]
             self.classifier = nn.Sequential(*output_layers)
@@ -357,10 +427,13 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
     losses_ts = []
     dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
     for epoch in range(n_epochs):
+        print(epoch)
         train_aux = []
         for x, y, lengths in train_generator:
+            # print(x.shape)
             x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
             preds = model(x, lengths)
+            preds = preds.reshape(x.shape[0], len(outputs))
             assert preds.shape == y.shape, "{} {}".format(preds.shape, y.shape)
             loss_elements = criterion(preds, y)
             loss = loss_elements.mean()
@@ -452,17 +525,26 @@ if __name__ == "__main__":
     # greater than 1 currently doesn't work
     #parser.add_argument('-o', '--outputs', default=1, type=int)  # total outputs will be outputs * features
     parser.add_argument('-om', '--output_multiplier', default=1, type=int)  # total features before linear layer will be outputs * features * om
-    parser.add_argument('-on', '--output_name', metavar='N', type=str, nargs='+',
-                    help='a list of strings denoting the output types')
+    # parser.add_argument('-on', '--output_name', metavar='N', type=str, nargs='+',
+    #                     help='a list of strings denoting the output types')
+    # since wandb can't handle multi-outputs; to use on multiple outputs: -on "mean var cov"
+    parser.add_argument('-on', '--output_name', type=str,
+                        help='a list of strings denoting the output types')
     parser.add_argument('--name', type=str)
     parser.add_argument('--hematocrit', action='store_true')
     parser.add_argument('--plot', action='store_true')
     parser.add_argument('--layer_norm', default='false', type=str)
     parser.add_argument('--batch_norm', default='false', type=str)
+    parser.add_argument('--instance_norm', default='false', type=str)
+    parser.add_argument('--sample_norm', default='false', type=str)
+    parser.add_argument('--mean_center', default='false', type=str)
+    parser.add_argument('--quantile_scaling', default='false', type=str)
     parser.add_argument('--seed_weights', default=0, type=int)
     parser.add_argument('--seed_dataset', default=0, type=int)
     parser.add_argument('--distribution', default='normal', help='normal|gamma|t', type=str)
+    parser.add_argument('-a', '--activation', default='relu', help='relu|elu', type=str)
     parser.add_argument('-m', '--model', default='deepsets', type=str, help='deepsets|settransformer|deepsamples')
+    parser.add_argument('--ensemble_network', default='false', type=str)
     parser.add_argument('--path', default='distribution_plots/', type=str)
     parser.add_argument('--wandb_test', action='store_true')
     parser.add_argument('--cpu', action='store_true')
@@ -472,6 +554,12 @@ if __name__ == "__main__":
 
     layer_norm = str_to_bool_arg(args.layer_norm, 'layer_norm')
     batch_norm = str_to_bool_arg(args.batch_norm, 'batch_norm')
+    instance_norm = str_to_bool_arg(args.instance_norm, 'instance_norm')
+    sample_norm = str_to_bool_arg(args.sample_norm, 'sample_norm')
+    mean_center = str_to_bool_arg(args.mean_center, 'mean_center')
+    ensemble_network = str_to_bool_arg(args.ensemble_network, 'ensemble_network')
+    quantile_scaling = str_to_bool_arg(args.quantile_scaling, 'quantile_scaling')
+    args.output_name = args.output_name.split()
     
     if args.wandb_test:
         wandb.init(project='wandb_test')
@@ -496,27 +584,31 @@ if __name__ == "__main__":
         test = Dataset(test=True, **data_config)
         num_workers = 32
         n_dists = 5
-        n_final_outputs = args.outputs
+        n_final_outputs = 1
         output_names = ['hematocrit']
     else:
-        train = SyntheticDataset(args.train_size, args.sample_size, args.features, args.output_name, args.distribution, args.seed_dataset)
+        train = SyntheticDataset(args.train_size, args.sample_size, args.features, args.output_name, args.distribution, args.seed_dataset, mean_center)
         # standardscaler = StandardScaler()
         # X = standardscaler.fit_transform(train.Xs.reshape((-1, train.Xs.shape[-1]))).reshape(train.Xs.shape)
         # train.Xs = X
-        X = train.Xs.reshape((-1, train.Xs.shape[-1]))
-        quantile_scaler = QuantileScaler()
-        X_new = quantile_scaler.fit_transform(X)
-        train.Xs = X_new.reshape(train.Xs.shape)
-        test = SyntheticDataset(1000, args.sample_size, args.features,args.output_name, args.distribution, args.seed_dataset)
+        
+        if quantile_scaling:
+            X = train.Xs.reshape((-1, train.Xs.shape[-1]))
+            quantile_scaler = QuantileScaler()
+            X_new = quantile_scaler.fit_transform(X)
+            train.Xs = X_new.reshape(train.Xs.shape)
+        test = SyntheticDataset(1000, args.sample_size, args.features,args.output_name, args.distribution, args.seed_dataset, mean_center)
         # X = standardscaler.transform(test.Xs.reshape((-1, test.Xs.shape[-1]))).reshape(test.Xs.shape)
         # test.Xs = X
-        X = test.Xs.reshape((-1, test.Xs.shape[-1]))
-        X_new = quantile_scaler.transform(X)
-        test.Xs = X_new.reshape(test.Xs.shape)
+
+        if quantile_scaling:
+            X = test.Xs.reshape((-1, test.Xs.shape[-1]))
+            X_new = quantile_scaler.transform(X)
+            test.Xs = X_new.reshape(test.Xs.shape)
 
         num_workers = 1
         n_dists = 1
-        if args.output_name == ['cov-var-function']:
+        if args.output_name == ['cov-var-function'] or args.output_name == ['mean-cov-var-function']:
             n_final_outputs = 1
         elif args.output_name == ['cov-var']:
             n_final_outputs = 3
@@ -559,12 +651,31 @@ if __name__ == "__main__":
     elif args.model == 'deepsets-sum':
         model_unit = BasicDeepSetSum
         n_inputs = args.features
+    elif args.model == 'deepsets-rc':
+        model_unit = BasicDeepSetMeanRC
+        n_inputs = args.features
     else:
         model_unit = BasicDeepSetMean
         n_inputs = args.features
-     
-    model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm).to(device) 
-                            for i in range(num_models)], n_outputs=n_final_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
+    
+    if args.activation == 'relu':
+        activation = nn.ReLU
+    elif args.activation == 'elu':
+        activation = nn.ELU
+
+    n_outputs = 0
+    for output_name in args.output_name:
+        if output_name in ['cov', 'cov-var-function', 'mean-cov-var-function']:
+            n_outputs += 1
+        else:
+            n_outputs += args.features
+    
+    if ensemble_network:
+        model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size, sample_norm=sample_norm).to(device) 
+                            for i in range(num_models)], n_outputs=n_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
+    else:
+        model = model_unit(n_inputs=n_inputs, n_outputs=n_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size, sample_norm=sample_norm).to(device)
+
     print(model)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
@@ -575,12 +686,15 @@ if __name__ == "__main__":
     if 'cov' in args.output_name:
         output_names = output_names[:-1]
     # only one output, not one per feature
-    elif args.output_name == ['cov-var-function']:
+    elif args.output_name == ['cov-var-function'] or args.output_name == ['mean-cov-var-function']:
         output_names = [args.output_name]
     elif args.output_name == ['cov-var']:
         output_names = ['var0', 'var1', 'cov']
+    elif args.output_name == ['hematocrit']:
+        output_names = ['hematocrit']
     else:
         output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
+    print(output_names)
     model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
                                             train_generator, test_generator, n_epochs=args.epochs,
                                             outputs=output_names, use_wandb=True, plot_gradients=False, seed=args.seed_weights)

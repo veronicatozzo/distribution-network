@@ -11,6 +11,7 @@ from sklearn.model_selection import ShuffleSplit
 from itertools import combinations
 from collections import Counter
 import collections
+from statsmodels.distributions.empirical_distribution import ECDF
 
 
 def wasserstein_2d(X1, X2):
@@ -99,3 +100,38 @@ def read_id_file(id_file):
     with open(id_file, 'rb') as f:
         to_read = pkl.load(f)
     return to_read['train'], to_read['test']
+
+def str_to_bool_arg(arg, name):
+    """ wandb can't accept bool arguments in argparse, so we 
+        use str arguments and translate into bool for downstream code use
+    """
+    if arg.lower() == 'true':
+        value = True
+    elif arg.lower() == 'false':
+        value = False
+    else:
+        raise ValueError(f"Argument {name} is unaccepted value {arg}")
+    return value
+
+class QuantileScaler(object):
+    def __init__(self):
+        # one ecdf per column
+        self.ecdfs = []
+    
+    def fit_transform(self, X):
+        transformed_X = []
+        for col in X.T:
+            ecdf = ECDF(col)
+            self.ecdfs.append(ecdf)
+            transformed_X.append(ecdf(col))
+        transformed_X = np.array(transformed_X)
+        transformed_X = transformed_X * 2 - 1
+        return transformed_X.T
+    
+    def transform(self, X):
+        transformed_X = []
+        for i, col in enumerate(X.T):
+            transformed_X.append(self.ecdfs[i](col))
+        transformed_X = np.array(transformed_X)
+        transformed_X = transformed_X * 2 - 1
+        return transformed_X.T
