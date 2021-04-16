@@ -30,16 +30,16 @@ def plot_moments_distribution(train, outputs_names, path=''):
         print(np.array(y_tr).shape)
         print(i)
         aux_x = [y_tr[j][i*2] for j in range(len(train))]
-        # aux_y = [y_tr[j][i*2+1] for j in range(len(train))]
+        aux_y = [y_tr[j][i*2+1] for j in range(len(train))]
         fig, ax = plt.subplots(1, 2, figsize=(10, 5))
         ax[0].hist(aux_x)
-        # ax[1].hist(aux_y)
+        ax[1].hist(aux_y)
         ax[0].grid()
         ax[1].grid()
         ax[0].set_title(outputs_names[i]+' of x axis, Baseline MSE: '+str(mean_squared_error(aux_x, np.ones(10000)*np.mean(aux_x))))
-        # ax[1].set_title(outputs_names[i]+' of y axis, Baseline MSE: '+str(mean_squared_error(aux_y, np.ones(10000)*np.mean(aux_y))))
+        ax[1].set_title(outputs_names[i]+' of y axis, Baseline MSE: '+str(mean_squared_error(aux_y, np.ones(10000)*np.mean(aux_y))))
         ax[0].axvline(np.mean(aux_x), color='red')
-        # ax[1].axvline(np.mean(aux_y), color='red')
+        ax[1].axvline(np.mean(aux_y), color='red')
         plt.tight_layout()
         plt.savefig(path+outputs_names[i]+'.png', dpi=200, bbox_inches='tight')
 
@@ -629,7 +629,6 @@ if __name__ == "__main__":
         if args.plot:
             os.makedirs(args.path, exist_ok=True)
             plot_moments_distribution(train, args.output_name, path=args.path) # possibly we might want to add something relative to the experiments
-            import sys; sys.exit()
             if args.output_name == ["cov-var-function"]:
                 plot_2d_moments_dist_and_func(train, ['covariance', 'var', args.output_name], path=args.path)
     train_generator = DataLoader(train,
