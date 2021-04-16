@@ -121,6 +121,7 @@ class SyntheticDataset(Dataset):
             elif distribution == "gamma":
                 X = np.random.RandomState(random_state).gamma(np.random.randint(1, 30, size=self.n_dim), np.random.randint(1, 30, size=self.n_dim), size=(self.n_samples, self.n_dim))
             
+
             X2 = X**2
             means2 = np.mean(X2, axis=0)
             means = np.mean(X, axis=0)
@@ -180,6 +181,8 @@ class SyntheticDataset(Dataset):
                     y += [covariances.ravel()]
                 elif output_name == 'cov-var-function':
                     y += [np.square(covariances)/2 * logsumexp(stds, axis=0).ravel()]
+                elif output_name == 'mean-cov-var-function':
+                    y += [np.square(covariances)/2 * logsumexp(stds, axis=0).ravel() + np.sum(means)]
                 elif output_name == 'cov-var':
                     y += [np.square(stds.ravel()), covariances.ravel()]
                 # else:
@@ -283,6 +286,39 @@ class BasicDeepSetMean(BasicDeepSet):
         if self.sample_norm:
             x = torch.transpose(x, 1, 2)
         x = x.mean(dim=-2)
+        x = self.dec(x)
+        return x
+
+class BasicDeepSetMeanRC(BasicDeepSet):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        dec_layers = []
+        for i in range(kwargs['n_dec_layers']):
+            if i == kwargs['n_dec_layers'] - 1:
+                dec_layers.append(nn.Linear(in_features=kwargs['n_hidden_units'] + kwargs['n_inputs'], out_features=kwargs['n_outputs']))
+            else:
+                dec_layers.append(nn.Linear(in_features=kwargs['n_hidden_units'] + kwargs['n_inputs'], out_features=kwargs['n_hidden_units'] + kwargs['n_inputs']))
+                if kwargs['ln']:
+                    dec_layers.append(nn.LayerNorm(kwargs['n_hidden_units'] + kwargs['n_inputs']))
+                dec_layers.append(kwargs['activation']())
+        self.dec = nn.Sequential(*dec_layers)
+
+    def forward(self, x, length=None):
+#         x = super().forward(x)
+        means = torch.mean(x, axis=1)
+        # print(means.shape)
+        x -= means.unsqueeze(1)
+        if self.sample_norm:
+            x = self.enc(torch.transpose(x, 1, 2))
+        else:
+            x = self.enc(x)
+        if self.multiplication:
+            x = torch.mul(x, x)
+        if self.sample_norm:
+            x = torch.transpose(x, 1, 2)
+        x = x.mean(dim=-2)
+        x = torch.cat([x, means], axis=1)  # [b, hidden + features_per_sample]
+        # print('x', x.shape)
         x = self.dec(x)
         return x
 
@@ -572,7 +608,7 @@ if __name__ == "__main__":
 
         num_workers = 1
         n_dists = 1
-        if args.output_name == ['cov-var-function']:
+        if args.output_name == ['cov-var-function'] or args.output_name == ['mean-cov-var-function']:
             n_final_outputs = 1
         elif args.output_name == ['cov-var']:
             n_final_outputs = 3
@@ -615,6 +651,9 @@ if __name__ == "__main__":
     elif args.model == 'deepsets-sum':
         model_unit = BasicDeepSetSum
         n_inputs = args.features
+    elif args.model == 'deepsets-rc':
+        model_unit = BasicDeepSetMeanRC
+        n_inputs = args.features
     else:
         model_unit = BasicDeepSetMean
         n_inputs = args.features
@@ -626,7 +665,7 @@ if __name__ == "__main__":
 
     n_outputs = 0
     for output_name in args.output_name:
-        if output_name in ['cov', 'cov-var-function']:
+        if output_name in ['cov', 'cov-var-function', 'mean-cov-var-function']:
             n_outputs += 1
         else:
             n_outputs += args.features
@@ -647,7 +686,7 @@ if __name__ == "__main__":
     if 'cov' in args.output_name:
         output_names = output_names[:-1]
     # only one output, not one per feature
-    elif args.output_name == ['cov-var-function']:
+    elif args.output_name == ['cov-var-function'] or args.output_name == ['mean-cov-var-function']:
         output_names = [args.output_name]
     elif args.output_name == ['cov-var']:
         output_names = ['var0', 'var1', 'cov']
