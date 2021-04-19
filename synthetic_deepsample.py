@@ -392,13 +392,16 @@ class DeepSample(nn.Module):
         self.enc2 = nn.Sequential(*enc_layers)
         dec_layers = []
         for i in range(n_dec_layers_inner):
+            if i == 0:
+                if normalization:
+                    dec_layers.append(nn.Linear(in_features=n_hidden_units_inner+ n_hidden_units_outer + n_inputs, out_features=n_hidden_units_inner))
+                else:
+                    dec_layers.append(nn.Linear(in_features=n_hidden_units_inner + n_hidden_units_outer, out_features=n_hidden_units_inner))
+                dec_layers.append(activation())
             if i == n_dec_layers_inner - 1:
                 dec_layers.append(nn.Linear(in_features=n_hidden_units_inner, out_features=n_outputs))
             else:
-                if normalization:
-                    dec_layers.append(nn.Linear(in_features=n_hidden_units_inner+n_inputs, out_features=n_hidden_units_inner))
-                else:
-                    dec_layers.append(nn.Linear(in_features=n_hidden_units_inner, out_features=n_hidden_units_inner))
+                dec_layers.append(nn.Linear(in_features=n_hidden_units_inner, out_features=n_hidden_units_inner))
                 dec_layers.append(activation())
         self.dec2 = nn.Sequential(*dec_layers)
         self.normalization=normalization
@@ -421,6 +424,9 @@ class DeepSample(nn.Module):
         x = self.enc2(x)
         #print(x.shape)
         x = x.mean(dim=-2)
+        x = torch.cat([x, learned_repr], axis=1)  # [b, hidden + features_per_sample]
+
+        #x = torch.cat([x, torch.tensor(np.repeat(learned_repr[:, np.newaxis, :].cpu().detach().numpy(), x.shape[1], 1)).to(device)], axis=2)  # [b, hidden + features_per_sample]
         if self.normalization:
             x = torch.cat([x, means], axis=1) 
         x = self.dec2(x)
