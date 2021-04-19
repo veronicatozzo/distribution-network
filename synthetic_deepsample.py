@@ -352,7 +352,7 @@ class BasicDeepSetMeanEnc(BasicDeepSet):
         means = torch.mean(x, axis=1)
         #print(means.shape)
         #x -= means.unsqueeze(1)
-        x = torch.cat([x, np.repeat(means[:, np.newaxis, :], x.shape[1], 1)], axis=2) 
+        x = torch.cat([x, torch.tensor(np.repeat(means[:, np.newaxis, :].cpu().detach().numpy(), x.shape[1], 1)).to(device)], axis=2) 
         x = self.enc(x)
         x = x.mean(dim=-2)
         x = torch.cat([x, means], axis=1)  # [b, hidden + features_per_sample]
@@ -416,7 +416,7 @@ class DeepSample(nn.Module):
         
         learned_repr = learned_repr.mean(dim=-2)
         #print(learned_repr.shape)
-        x = torch.cat([x, torch.tensor(np.repeat(learned_repr[:, np.newaxis, :].detach().numpy(), x.shape[1], 1)).to(device)], axis=2)  # [b, hidden + features_per_sample]
+        x = torch.cat([x, torch.tensor(np.repeat(learned_repr[:, np.newaxis, :].cpu().detach().numpy(), x.shape[1], 1)).to(device)], axis=2)  # [b, hidden + features_per_sample]
         # print('x', x.shape)
         x = self.enc2(x)
         #print(x.shape)
@@ -485,7 +485,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             # print(x.shape)
             x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
             preds = model(x, lengths)
-            preds = preds.reshape(x.shape[0], len(outputs))
+            #preds = preds.reshape(x.shape[0], len(outputs))
             assert preds.shape == y.shape, "{} {}".format(preds.shape, y.shape)
             loss_elements = criterion(preds, y)
             loss = loss_elements.mean()
@@ -572,7 +572,7 @@ if __name__ == "__main__":
     parser.add_argument('-di', '--dec_layers_inner', default=1, type=int)
     parser.add_argument('-uo', '--hidden_units_outer', default=64, type=int)
     parser.add_argument('-ui', '--hidden_units_inner', default=64, type=int)
-    parser.add_argument('--normalization', action='store_true')
+    parser.add_argument('--normalization', default="true", type=str)
 
     parser.add_argument('-e', '--enc_layers', default=2, type=int)
     parser.add_argument('-d', '--dec_layers', default=1, type=int)
@@ -734,12 +734,12 @@ if __name__ == "__main__":
         else:
             n_outputs += args.features
     
-    model = model_unit(n_inputs=n_inputs, n_outputs=n_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size, sample_norm=sample_norm).to(device)
+    model = model_unit(n_inputs=n_inputs, n_outputs=n_final_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size, sample_norm=sample_norm).to(device)
     
     if args.model == 'deepsample':
-        model = DeepSample(n_inputs=n_inputs, n_outputs=n_outputs, n_enc_layers_outer=args.enc_layers_outer, n_hidden_units_outer=args.hidden_units_outer, n_dec_layers_outer=args.dec_layers_outer, 
+        model = DeepSample(n_inputs=n_inputs, n_outputs=n_final_outputs, n_enc_layers_outer=args.enc_layers_outer, n_hidden_units_outer=args.hidden_units_outer, n_dec_layers_outer=args.dec_layers_outer, 
         n_enc_layers_inner=args.enc_layers_inner, n_hidden_units_inner=args.hidden_units_inner, n_dec_layers_inner=args.dec_layers_inner,
-        activation=activation, normalization=args.normalization, 
+        activation=activation, normalization=args.normalization=="true", 
         sample_norm=sample_norm).to(device)
         n_inputs = args.features
     
