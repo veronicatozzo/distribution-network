@@ -352,7 +352,7 @@ class BasicDeepSetMeanEnc(BasicDeepSet):
         means = torch.mean(x, axis=1)
         #print(means.shape)
         #x -= means.unsqueeze(1)
-        x = torch.cat([x, torch.tensor(np.repeat(means[:, np.newaxis, :].cpu().detach().numpy(), x.shape[1], 1)).to(device)], axis=2) 
+        x = torch.cat([x, torch.repeat_interleave(means[:, np.newaxis, :], x.shape[1], 1)], axis=2) 
         x = self.enc(x)
         x = x.mean(dim=-2)
         x = torch.cat([x, means], axis=1)  # [b, hidden + features_per_sample]
