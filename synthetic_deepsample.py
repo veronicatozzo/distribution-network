@@ -365,7 +365,7 @@ class DeepSample(nn.Module):
     def __init__(self, n_inputs=2, n_outputs=1, n_enc_layers_outer=4,               
             n_enc_layers_inner=4,  n_dec_layers_outer=1, n_dec_layers_inner=1,     
                 n_hidden_units_outer=64, n_hidden_units_inner=64, 
-                 normalization=True,ln=False, bn=False, activation=nn.ReLU, instance_norm=False, sample_norm=False, n_samples=1000, **kwargs):
+                 normalization=True,connect_decoder=True,  activation=nn.ReLU,  n_samples=1000, **kwargs):
         super().__init__(**kwargs)
         
         enc_layers_out = []
@@ -393,10 +393,16 @@ class DeepSample(nn.Module):
         dec_layers = []
         for i in range(n_dec_layers_inner):
             if i == 0:
-                if normalization:
-                    dec_layers.append(nn.Linear(in_features=n_hidden_units_inner+ n_hidden_units_outer + n_inputs, out_features=n_hidden_units_inner))
+                if connect_decoder:
+                    if normalization:
+                        dec_layers.append(nn.Linear(in_features=n_hidden_units_inner+ n_hidden_units_outer + n_inputs, out_features=n_hidden_units_inner))
+                    else:
+                        dec_layers.append(nn.Linear(in_features=n_hidden_units_inner + n_hidden_units_outer, out_features=n_hidden_units_inner))
                 else:
-                    dec_layers.append(nn.Linear(in_features=n_hidden_units_inner + n_hidden_units_outer, out_features=n_hidden_units_inner))
+                    if normalization:
+                        dec_layers.append(nn.Linear(in_features=n_hidden_units_inner+  n_inputs, out_features=n_hidden_units_inner))
+                    else:
+                        dec_layers.append(nn.Linear(in_features=n_hidden_units_inner, out_features=n_hidden_units_inner))
                 dec_layers.append(activation())
             if i == n_dec_layers_inner - 1:
                 dec_layers.append(nn.Linear(in_features=n_hidden_units_inner, out_features=n_outputs))
@@ -405,6 +411,7 @@ class DeepSample(nn.Module):
                 dec_layers.append(activation())
         self.dec2 = nn.Sequential(*dec_layers)
         self.normalization=normalization
+        self.connect_decoder=connect_decoder
 
     def forward(self, x, length=None):
 #         x = super().forward(x)
@@ -424,9 +431,9 @@ class DeepSample(nn.Module):
         x = self.enc2(x)
         #print(x.shape)
         x = x.mean(dim=-2)
-        x = torch.cat([x, learned_repr], axis=1)  # [b, hidden + features_per_sample]
+        if self.connect_decoder:
+            x = torch.cat([x, learned_repr], axis=1)  # [b, hidden + features_per_sample]
 
-        #x = torch.cat([x, torch.tensor(np.repeat(learned_repr[:, np.newaxis, :].cpu().detach().numpy(), x.shape[1], 1)).to(device)], axis=2)  # [b, hidden + features_per_sample]
         if self.normalization:
             x = torch.cat([x, means], axis=1) 
         x = self.dec2(x)
@@ -579,6 +586,7 @@ if __name__ == "__main__":
     parser.add_argument('-uo', '--hidden_units_outer', default=64, type=int)
     parser.add_argument('-ui', '--hidden_units_inner', default=64, type=int)
     parser.add_argument('--normalization', default="true", type=str)
+    parser.add_argument('--connect_decoder', default="true", type=str)
 
     parser.add_argument('-e', '--enc_layers', default=2, type=int)
     parser.add_argument('-d', '--dec_layers', default=1, type=int)
@@ -746,7 +754,7 @@ if __name__ == "__main__":
         model = DeepSample(n_inputs=n_inputs, n_outputs=n_final_outputs, n_enc_layers_outer=args.enc_layers_outer, n_hidden_units_outer=args.hidden_units_outer, n_dec_layers_outer=args.dec_layers_outer, 
         n_enc_layers_inner=args.enc_layers_inner, n_hidden_units_inner=args.hidden_units_inner, n_dec_layers_inner=args.dec_layers_inner,
         activation=activation, normalization=args.normalization=="true", 
-        sample_norm=sample_norm).to(device)
+        connect_decoder=args.connect_decoder=="true").to(device)
         n_inputs = args.features
     
 
