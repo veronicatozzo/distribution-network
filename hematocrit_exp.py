@@ -34,7 +34,7 @@ class BasicDeepSet(nn.Module):
         if sample_norm and any([bn, ln, instance_norm]):
             raise ValueError("Cannot have sample_norm and other norms")
         enc_layers = []
-       for i in range(n_enc_layers):
+        for i in range(n_enc_layers):
             if i == 0:
                 if sample_norm:
                     enc_layers.append(nn.ConvTranspose1d(n_inputs, n_hidden_units, 1))
