@@ -4,29 +4,31 @@ import torch.nn as nn
 import torch
 
 
-class EncodingBlock(nn.Module)
+class EncodingBlock(nn.Module):
     def __init__(self, n_inputs=2, n_hidden_units_global=8,         
                  n_hidden_units_sample=256, n_layers_global=3, n_layers_sample=3, 
-                 activation=nn.ReLU):
+                 activation=nn.ReLU, **kwargs):
         super().__init__(**kwargs)
         
         enc_layers_global = []
-        for i in range(n_enc_layers_global):
-            if i == n_enc_layers_global:
-                enc_layers_out.append(nn.Linear(in_features=n_inputs, out_features=n_hidden_units_global))
+        for i in range(n_layers_global):
+            if i == 0:
+                enc_layers_global.append(nn.Linear(in_features=n_inputs, out_features=n_hidden_units_global))
+                enc_layers_global.append(activation())
             else:
-                enc_layers_out.append(nn.Linear(in_features=n_hidden_units_global, out_features=n_hidden_units_global))
-                enc_layers_out.append(activation())
+                enc_layers_global.append(nn.Linear(in_features=n_hidden_units_global, out_features=n_hidden_units_global))
+                enc_layers_global.append(activation())
+        enc_layers_global= enc_layers_global[:-1]
         self.enc_global = nn.Sequential(*enc_layers_global)
         
         enc_layers_sample = []
-        for i in range(n_enc_layers_sample):
+        for i in range(n_layers_sample):
             if i == 0:
-                enc_layers.append(nn.Linear(in_features=n_hidden_units_global+n_inputs, out_features=n_hidden_units_sample))
-                enc_layers.append(activation())
+                enc_layers_sample.append(nn.Linear(in_features=n_hidden_units_global+n_inputs, out_features=n_hidden_units_sample))
+                enc_layers_sample.append(activation())
             else:
-                enc_layers.append(nn.Linear(in_features=n_hidden_units_sample, out_features=n_hidden_units_sample))
-                enc_layers.append(activation())
+                enc_layers_sample.append(nn.Linear(in_features=n_hidden_units_sample, out_features=n_hidden_units_sample))
+                enc_layers_sample.append(activation())
         # remove last relu
         enc_layers_sample = enc_layers_sample[:-1]
         self.enc_sample = nn.Sequential(*enc_layers_sample)
@@ -71,7 +73,7 @@ class DeepSamples(nn.Module):
                     else:
                         dec_layers.append(nn.Linear(in_features=n_hidden_units_inner*n_dists, out_features=n_hidden_units_inner))
                 dec_layers.append(activation())
-            if i == n_dec_layers_inner - 1:
+            if i == n_dec_layers- 1:
                 dec_layers.append(nn.Linear(in_features=n_hidden_units_inner, out_features=n_outputs))
             else:
                 dec_layers.append(nn.Linear(in_features=n_hidden_units_inner, out_features=n_hidden_units_inner))
@@ -84,7 +86,8 @@ class DeepSamples(nn.Module):
     def forward(self, x, length=None):
         
         if len(x.shape) == 4 and x.shape[1] > 1:
-            assert x.shape == self.n_dists
+
+            assert x.shape[1] == self.n_dists
             encoded = []
             means = []
             for j in range(x.shape[1]):
@@ -115,7 +118,6 @@ class DeepSamples(nn.Module):
                 x = torch.cat([x, self.encoders[0].global_features], axis=1)  # [b, hidden + features_per_sample]
             if self.normalization:
                 x = torch.cat([x, means], axis=1) 
-
         x = self.dec(x)
         return x
        

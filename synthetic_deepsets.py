@@ -18,10 +18,10 @@ import math
 from sklearn.preprocessing import StandardScaler
 from statsmodels.distributions.empirical_distribution import ECDF
 
-from utils import str_to_bool_arg, QuantileScaler
+from .utils import str_to_bool_arg, QuantileScaler
 
 
-from src.dataset import FullLargeDataset
+from .src.dataset import FullLargeDataset
 
 
 def plot_moments_distribution(train, outputs_names, path=''):

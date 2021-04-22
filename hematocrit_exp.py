@@ -363,10 +363,10 @@ if __name__ == "__main__":
 
     n_outputs = 1
     if args.model == 'deepsample':
-        model = DeepSamples(n_inputs=n_inputs, n_outputs=n_final_outputs, n_enc_layers_outer=args.enc_layers_outer, n_hidden_units_outer=args.hidden_units_outer, n_dec_layers_outer=args.dec_layers_outer, 
-        n_enc_layers_inner=args.enc_layers_inner, n_hidden_units_inner=args.hidden_units_inner, n_dec_layers_inner=args.dec_layers_inner,
-        activation=activation, normalization=args.normalization=="true", 
-        connect_decoder=args.connect_decoder=="true").to(device)
+        model = DeepSamples(n_inputs=n_inputs, n_outputs=n_final_outputs, n_enc_layers_outer=args.enc_layers_outer, n_hidden_units_outer=args.hidden_units_outer,
+        n_enc_layers_inner=args.enc_layers_inner, n_hidden_units_inner=args.hidden_units_inner, n_dec_layers_inner=args.dec_layers_inner, n_dists=n_dists,
+        activation=activation, normalization=normalization, 
+        connect_decoder=connect_decoder).to(device)
         n_inputs = args.features
     else:
         if args.model == 'settransformer':
