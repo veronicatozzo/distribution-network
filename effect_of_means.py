@@ -102,13 +102,17 @@ def plot_2d_moments_dist_and_func(train, output_names, path=''):
 
 
 class SyntheticDataset(Dataset):
-    def __init__(self, N=1000, n_samples=500, n_dim=2, output_names=None, distribution='normal', random_state=0, mean_center=False):
+    def __init__(self, N=1000, n_samples=500, n_dim=2, n_centers=2, output_names=None, distribution='normal', random_state=0, mean_center=False):
         self.N = N
         self.n_samples = n_samples
         self.n_dim = n_dim
         self.Xs = []
         self.ys = []
         print('Dataset output', output_names)
+
+
+        scales = np.randon.randing(1, 100, size=self.n_dim)
+
         for n in range(N):
             x = []
             y = []
@@ -119,7 +123,7 @@ class SyntheticDataset(Dataset):
             elif distribution == "normal-hard":
                 cov = make_spd_matrix(self.n_dim)
                 cov_scale = 5
-                mean_scale = 2
+                mean_scale = scales[N//(N//n_centers)]
                 X = np.random.RandomState(random_state).multivariate_normal(np.random.randn(self.n_dim) * mean_scale, cov * cov_scale, size=self.n_samples, check_valid='warn', tol=1e-8)
             elif distribution == "t":
                 X = np.random.RandomState(random_state).standard_t(np.random.randint(10, 20, size=self.n_dim), size=(self.n_samples, self.n_dim))
@@ -521,6 +525,7 @@ if __name__ == "__main__":
     parser.add_argument('-bs', '--batch_size', default=64, type=int)
     parser.add_argument('-e', '--enc_layers', default=2, type=int)
     parser.add_argument('-d', '--dec_layers', default=1, type=int)
+    
     parser.add_argument('-ol', '--output_layers', default=1, type=int)
     parser.add_argument('-u', '--hidden_units', default=64, type=int)
     parser.add_argument('-s', '--step_size', default=60, type=int)
@@ -533,6 +538,9 @@ if __name__ == "__main__":
     # parser.add_argument('-on', '--output_name', metavar='N', type=str, nargs='+',
     #                     help='a list of strings denoting the output types')
     # since wandb can't handle multi-outputs; to use on multiple outputs: -on "mean var cov"
+
+    parser.add_argument('--centers', default=2, type=int)
+   
     parser.add_argument('-on', '--output_name', type=str,
                         help='a list of strings denoting the output types')
     parser.add_argument('--name', type=str)
@@ -592,7 +600,7 @@ if __name__ == "__main__":
         n_final_outputs = 1
         output_names = ['hematocrit']
     else:
-        train = SyntheticDataset(args.train_size, args.sample_size, args.features, args.output_name, args.distribution, args.seed_dataset, mean_center)
+        train = SyntheticDataset(args.train_size, args.sample_size, args.features, args.center, args.output_name, args.distribution, args.seed_dataset, mean_center)
         # standardscaler = StandardScaler()
         # X = standardscaler.fit_transform(train.Xs.reshape((-1, train.Xs.shape[-1]))).reshape(train.Xs.shape)
         # train.Xs = X
@@ -602,7 +610,7 @@ if __name__ == "__main__":
             quantile_scaler = QuantileScaler()
             X_new = quantile_scaler.fit_transform(X)
             train.Xs = X_new.reshape(train.Xs.shape)
-        test = SyntheticDataset(1000, args.sample_size, args.features,args.output_name, args.distribution, args.seed_dataset, mean_center)
+        test = SyntheticDataset(1000, args.sample_size, args.features,args.center, args.output_name, args.distribution, args.seed_dataset, mean_center)
         # X = standardscaler.transform(test.Xs.reshape((-1, test.Xs.shape[-1]))).reshape(test.Xs.shape)
         # test.Xs = X
 
@@ -682,10 +690,6 @@ if __name__ == "__main__":
         model = model_unit(n_inputs=n_inputs, n_outputs=n_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size, sample_norm=sample_norm).to(device)
 
     print(model)
-    def count_parameters(model):
-        return sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(count_parameters(model))
-    
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
 
@@ -706,4 +710,4 @@ if __name__ == "__main__":
     print(output_names)
     model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
                                             train_generator, test_generator, n_epochs=args.epochs,
-                                            outputs=output_names, use_wandb=True, plot_gradients=False, seed=args.seed_weights)
+                                            outputs=output_names, use_wandb=True, plot_gradients=True, seed=args.seed_weights)
