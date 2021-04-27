@@ -682,6 +682,10 @@ if __name__ == "__main__":
         model = model_unit(n_inputs=n_inputs, n_outputs=n_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size, sample_norm=sample_norm).to(device)
 
     print(model)
+    def count_parameters(model):
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(count_parameters(model))
+    
     optimizer = torch.optim.Adam(model.parameters(),lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, last_epoch=-1)
 
