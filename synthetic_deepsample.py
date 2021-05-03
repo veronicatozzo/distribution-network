@@ -105,7 +105,7 @@ def plot_2d_moments_dist_and_func(train, output_names, path=''):
 
 
 class SyntheticDataset(Dataset):
-    def __init__(self, N=1000, n_samples=500, n_dim=2, output_names=None, distribution='normal', random_state=0, mean_center=False):
+    def __init__(self, N=1000, n_samples=500, n_dim=2,n_centers=2, output_names=None, distribution='normal', random_state=0, mean_center=False):
         self.N = N
         self.n_samples = n_samples
         self.n_dim = n_dim
@@ -119,6 +119,13 @@ class SyntheticDataset(Dataset):
             if distribution == "normal":
                 cov = make_spd_matrix(self.n_dim)
                 X = np.random.RandomState(random_state).multivariate_normal(np.random.randn(self.n_dim), cov, size=self.n_samples, check_valid='warn', tol=1e-8)
+            if distribution =='normal-hard':
+                means = np.array([[0, 0], [1, 1], [5, 5], [10, 10], [100, 100], [200, 200]])
+                cov = make_spd_matrix(self.n_dim)
+                cov_scale = 5
+                mean_scale = means[n//(N//min(n_centers, 6)), :];
+                X = np.random.RandomState(random_state).multivariate_normal( mean_scale, cov * cov_scale, size=self.n_samples, check_valid='warn',
+                                   tol=1e-8)
             elif distribution == "t":
                 X = np.random.RandomState(random_state).standard_t(np.random.randint(10, 20, size=self.n_dim), size=(self.n_samples, self.n_dim))
             elif distribution == "gamma":
@@ -651,7 +658,7 @@ if __name__ == "__main__":
     parser.add_argument('-ui', '--hidden_units_inner', default=64, type=int)
     parser.add_argument('--normalization', default="true", type=str)
     parser.add_argument('--connect_decoder', default="true", type=str)
-
+    parser.add_argument('--centers', default=2, type=int)
     parser.add_argument('-e', '--enc_layers', default=2, type=int)
     parser.add_argument('-d', '--dec_layers', default=1, type=int)
     
@@ -726,7 +733,7 @@ if __name__ == "__main__":
         n_final_outputs = 1
         output_names = ['hematocrit']
     else:
-        train = SyntheticDataset(args.train_size, args.sample_size, args.features, args.output_name, args.distribution, args.seed_dataset, mean_center)
+        train = SyntheticDataset(args.train_size, args.sample_size, args.features,args.centers,  args.output_name, args.distribution, args.seed_dataset, mean_center)
         # standardscaler = StandardScaler()
         # X = standardscaler.fit_transform(train.Xs.reshape((-1, train.Xs.shape[-1]))).reshape(train.Xs.shape)
         # train.Xs = X
@@ -736,7 +743,7 @@ if __name__ == "__main__":
             quantile_scaler = QuantileScaler()
             X_new = quantile_scaler.fit_transform(X)
             train.Xs = X_new.reshape(train.Xs.shape)
-        test = SyntheticDataset(1000, args.sample_size, args.features,args.output_name, args.distribution, args.seed_dataset, mean_center)
+        test = SyntheticDataset(1000, args.sample_size, args.features,args.centers, args.output_name, args.distribution, args.seed_dataset, mean_center)
         # X = standardscaler.transform(test.Xs.reshape((-1, test.Xs.shape[-1]))).reshape(test.Xs.shape)
         # test.Xs = X
 

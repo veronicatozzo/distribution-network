@@ -9,7 +9,7 @@ class EncodingBlock(nn.Module):
                  n_hidden_units_sample=256, n_layers_global=3, n_layers_sample=3, 
                  activation=nn.ReLU, **kwargs):
         super().__init__(**kwargs)
-        
+
         enc_layers_global = []
         for i in range(n_layers_global):
             if i == 0:
@@ -48,17 +48,19 @@ class DeepSamples(nn.Module):
                  n_enc_layers_outer=4, n_enc_layers_inner=4,   n_dec_layers=1, n_hidden_units_outer=64, n_hidden_units_inner=64, normalization=True,connect_decoder=True,  activation=nn.ReLU,  n_samples=1000,
                  n_dists=1, **kwargs):
         super().__init__(**kwargs)
-        
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         
         self.encoders = []
         for i in range(n_dists):
-            aux = []
-            for r in range(n_rep_encoding_block):
-                aux.append(EncodingBlock(n_inputs=n_inputs, n_hidden_units_global=n_hidden_units_outer,         
+            #aux = []
+            #for r in range(n_rep_encoding_block):
+            aux = EncodingBlock(n_inputs=n_inputs, n_hidden_units_global=n_hidden_units_outer,         
                  n_hidden_units_sample=n_hidden_units_inner, n_layers_global=n_enc_layers_outer, n_layers_sample=n_enc_layers_inner, 
-                 activation=activation))
-            self.encoders.append(nn.Sequential(*aux))
-
+                 activation=activation).to(device)
+            self.encoders.append(aux)
+        self.encoders = nn.ModuleList(self.encoders)
+        print(len(self.encoders))
+     
         dec_layers = []
         for i in range(n_dec_layers):
             if i == 0:
@@ -84,9 +86,10 @@ class DeepSamples(nn.Module):
         self.n_dists=n_dists
 
     def forward(self, x, length=None):
-        
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         if len(x.shape) == 4 and x.shape[1] > 1:
-
+            #print(x.shape)
+            #print(self.n_dists)
             assert x.shape[1] == self.n_dists
             encoded = []
             means = []
@@ -95,12 +98,12 @@ class DeepSamples(nn.Module):
                 if self.normalization:
                     means.append(torch.mean(a, axis=1))
                     a -= means[-1].unsqueeze(1)
-                encoded.append(self.encoders[j](a))
+                encoded.append(self.encoders[j](a.to(device)))
             x = torch.cat(encoded, 1)
 
             if self.connect_decoder:
                 global_features = []
-                for j in range(x.shape[1]):
+                for j in range(self.n_dists):
                     global_features.append(self.encoders[j].global_features)
                 feats = torch.cat(global_features, 1)
                 x = torch.cat([x, feats], axis=1)  # [b, hidden_outer*n_dists + hidden_inner*n_dists]
