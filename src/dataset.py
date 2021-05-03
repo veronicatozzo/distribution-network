@@ -10,9 +10,9 @@ from collections import Counter
 from sklearn.preprocessing import StandardScaler
 from sklearn.base import TransformerMixin
 
-from ..preprocessing import SetStandardScaler
-from ..utils import shuffle_split_no_overlapping_patients, save_id_file
-from ..utils import  save_id_file, read_id_file
+from preprocessing import SetStandardScaler
+from utils import shuffle_split_no_overlapping_patients, save_id_file
+from utils import  save_id_file, read_id_file
 import time 
 
 SAMPLE_SIZE=50000
@@ -292,6 +292,7 @@ class FullLargeDataset(Dataset):
                         for i in self.train_ids_[:min(300, len(self.ids_))]])
                 self._setstandardscaler.append(ss)
         print('Passed pre-processing, time:', time.time() - time_)
+        print('Number of ids: ', len(self.ids_))
         self.num_subsamples = num_subsamples
         self.permutate_subsamples =permute_subsamples
         self.normalizer = normalizer

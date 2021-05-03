@@ -25,7 +25,7 @@ torch.autograd.set_detect_anomaly(True)
 from src.dataset import FullLargeDataset
 from set_transformer.models import SmallSetTransformer
 from synthetic_deepsets import EnsembleNetwork
-
+from deep_samples.model import DeepSamples
 
 def plot_moments_distribution(train, outputs_names, path=''):
     X_tr, y_tr, lengths = zip(*[train[i] for i in range(len(train))])
@@ -605,7 +605,7 @@ class EnsembleNetwork(nn.Module):
             output_layers = []
             for i in range(layers):
                 if i == layers - 1:
-                    output_layers.append(nn.Linear(n_inputs, n_o))
+                    output_layers.append(nn.Linear(n_inputs, n_final_outputs))
                 else:
                     output_layers.append(nn.Linear(n_inputs, n_inputs))
                 output_layers.append(activation())
@@ -790,7 +790,8 @@ if __name__ == "__main__":
         model_unit = SmallSetTransformer
         n_inputs = args.features
     elif args.model == 'deepsamples':
-        model_unit = SmallDeepSamples
+        # model_unit = SmallDeepSamples
+        model_unit = DeepSamples
         # n_inputs for deepsamples should actually be n_dists
         # we code in this way to maintain compatibility with main.py
         n_inputs = 1
@@ -823,15 +824,16 @@ if __name__ == "__main__":
         # and decouple n_outputs in EnsembleNetwork with 
         model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size, sample_norm=sample_norm).to(device) 
                             for i in range(num_models)], n_outputs=n_outputs, n_final_outputs=n_final_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
-    else:
-        model = model_unit(n_inputs=n_inputs, n_outputs=n_final_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size, sample_norm=sample_norm).to(device)
-    
-    if args.model == 'deepsample':
-        model = DeepSample(n_inputs=n_inputs, n_outputs=n_final_outputs, n_enc_layers_outer=args.enc_layers_outer, n_hidden_units_outer=args.hidden_units_outer, n_dec_layers_outer=args.dec_layers_outer, 
+    elif args.model == 'deepsamples':
+        model = DeepSamples(n_inputs=n_inputs, n_outputs=n_final_outputs, n_enc_layers_outer=args.enc_layers_outer, n_hidden_units_outer=args.hidden_units_outer, n_dec_layers_outer=args.dec_layers_outer, 
         n_enc_layers_inner=args.enc_layers_inner, n_hidden_units_inner=args.hidden_units_inner, n_dec_layers_inner=args.dec_layers_inner,
         activation=activation, normalization=args.normalization=="true", 
         connect_decoder=args.connect_decoder=="true").to(device)
         n_inputs = args.features
+    else:
+        model = model_unit(n_inputs=n_inputs, n_outputs=n_final_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size, sample_norm=sample_norm).to(device)
+    
+    
     
 
     print(model)
@@ -853,6 +855,32 @@ if __name__ == "__main__":
     else:
         output_names = list(map(str, itertools.product(args.output_name, range(args.features))))
     print(output_names)
-    model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
-                                            train_generator, test_generator, n_epochs=args.epochs,
-                                            outputs=output_names, use_wandb=True, plot_gradients=False, seed=args.seed_weights)
+
+    # dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+    # train_data = []
+    # i = 0
+    # for x, y, lengths in train_generator:
+    #     print(i)
+    #     i+=1
+    #     x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
+    #     train_data.append((x, y, lengths))
+    # torch.save(train_data, f'train_data_hematocrit_{args.batch_size}.pt')
+
+    # test_data = []
+    # i = 0
+    # for x, y, lengths in test_generator:
+    #     print(i)
+    #     i+=1
+    #     x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
+    #     test_data.append((x, y, lengths))
+    # torch.save(test_data, f'test_data_hematocrit_{args.batch_size}.pt')
+
+    train_data = torch.load(f'train_data_hematocrit_{args.batch_size}.pt')
+    test_data = torch.load(f'test_data_hematocrit_{args.batch_size}.pt')
+    
+    print('data created')
+    with torch.autograd.set_detect_anomaly(True):
+        model, train_score, test_score, losses_tr, losses_ts = train_nn(model, 'tentative', optimizer, scheduler, 
+                                                # train_generator, test_generator, n_epochs=args.epochs,
+                                                train_data, test_data, n_epochs=args.epochs,
+                                                outputs=output_names, use_wandb=True, plot_gradients=False, seed=args.seed_weights)
