@@ -20,8 +20,11 @@ from statsmodels.distributions.empirical_distribution import ECDF
 
 from utils import str_to_bool_arg, QuantileScaler
 
+torch.autograd.set_detect_anomaly(True)
 
 from src.dataset import FullLargeDataset
+from set_transformer.models import SmallSetTransformer
+from synthetic_deepsets import EnsembleNetwork
 
 
 def plot_moments_distribution(train, outputs_names, path=''):
@@ -153,6 +156,10 @@ class SyntheticDataset(Dataset):
                 elif output_name == 'x^4':
                     means4 = np.mean(X**4, axis=0)
                     y = [means4.ravel()]
+                elif output_name == 'cube_root(x-Ex)':
+                    centeredX = X - np.mean(X, axis=0)
+                    output = np.mean(np.sign(centeredX) * (np.abs(centeredX)) ** (1 / 3), axis=0)
+                    y = [output.ravel()]
                 elif output_name == 'var':
                     y += [np.square(stds.ravel())]
                 elif output_name == 'skew':
@@ -426,7 +433,7 @@ class DeepSample(nn.Module):
         
         learned_repr = learned_repr.mean(dim=-2)
         #print(learned_repr.shape)
-        x = torch.cat([x, torch.tensor(np.repeat(learned_repr[:, np.newaxis, :].cpu().detach().numpy(), x.shape[1], 1)).to(device)], axis=2)  # [b, hidden + features_per_sample]
+        x = torch.cat([x, torch.repeat_interleave(learned_repr[:, np.newaxis, :], x.shape[1], 1).to(device)], axis=2)  # [b, hidden + features_per_sample]
         # print('x', x.shape)
         x = self.enc2(x)
         #print(x.shape)
@@ -498,9 +505,11 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
             # print(x.shape)
             x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
             preds = model(x, lengths)
+            assert torch.isnan(preds).sum() == 0, "nans in preds: {}".format(torch.isnan(preds).sum()/torch.ones_like(preds).sum())
             #preds = preds.reshape(x.shape[0], len(outputs))
             assert preds.shape == y.shape, "{} {}".format(preds.shape, y.shape)
             loss_elements = criterion(preds, y)
+            assert torch.isnan(loss_elements).sum() == 0, "nans in loss_elements: {}".format(torch.isnan(loss_elements).sum()/torch.ones_like(loss_elements).sum())
             loss = loss_elements.mean()
             if np.isnan(loss.detach().cpu().numpy()):
                 raise ValueError("Train loss is nan: ", loss)
@@ -530,6 +539,7 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                 for x, y, lengths in test_generator:
                     x, y, lengths = x.type(dtype).to(device), y.type(dtype).to(device), lengths.to(device)
                     loss_elements = criterion(model(x, lengths), y)
+                    assert torch.isnan(loss_elements).sum() == 0, "nans in test loss_elements: {}".format(torch.isnan(loss_elements).sum()/torch.ones_like(loss_elements).sum())
                     loss = loss_elements.mean()
                     if np.isnan(loss.detach().cpu().numpy()):
                         raise ValueError("Test loss is nan: ", loss)
@@ -571,6 +581,60 @@ def train_nn(model, name, optimizer, scheduler, train_generator, test_generator,
                     best_loss_ts = test_loss
             #print(list(model.parameters())[4])
     return model, best_loss_tr, best_loss_ts, losses_tr, losses_ts
+
+
+class EnsembleNetwork(nn.Module):
+    def __init__(self, models, n_outputs=1, n_final_outputs=1, n_hidden_outputs=1, n_inputs=1, n_dist=1, layers=1, multi_input=False, device='cpu:0', activation=nn.ReLU()):
+        super(EnsembleNetwork, self).__init__()
+        self.models = nn.ModuleList(models)
+        self.multi_input = multi_input
+        self.n_outputs = n_outputs
+        self.device=device
+        assert n_inputs > len(models)
+        n_o = n_hidden_outputs if multi_input else n_outputs
+        if layers == 1:
+            self.classifier = nn.Linear(n_inputs, n_final_outputs)
+        else:
+            output_layers = []
+            for i in range(layers):
+                if i == layers - 1:
+                    output_layers.append(nn.Linear(n_inputs, n_o))
+                else:
+                    output_layers.append(nn.Linear(n_inputs, n_inputs))
+                output_layers.append(activation())
+            # remove last non-linearity
+            output_layers = output_layers[:-1]
+            self.classifier = nn.Sequential(*output_layers)
+        if self.multi_input:
+            self.models_ = [[copy.deepcopy(m) for m in self.models] for i in range(n_dist)]
+            self.classifiers_ = [copy.deepcopy(self.classifier) for i in range(n_dist)]
+            self.dec = nn.Linear(n_o*n_dist, n_final_outputs)
+        
+    def forward(self, x, lengths=None):
+        if self.multi_input and len(x.shape) == 4 and x.shape[1] > 1:
+            multi_output = []
+            for j in range(x.shape[1]):
+                a = x[:, j, :, :].squeeze(1)
+                xs = []
+                for m in self.models_[j]:
+                    xs.append(m.forward(a.clone().to(self.device)))
+                out = torch.cat(xs, dim=-1)
+                if len(x.shape) == 3:
+                    out = out.reshape((out.shape[0], -1))
+                multi_output.append(self.classifiers_[j](out))
+            x = torch.cat(multi_output, 1)
+            x = self.dec(x)
+        else:
+            xs = []
+            for m in self.models:
+                xs.append(m.forward(x.squeeze().clone().to(self.device)))
+            x = torch.cat(xs, dim=-1)
+            if len(x.shape) == 3:
+                x = x.reshape((x.shape[0], -1))
+            x = self.classifier(x)
+        return x
+
+
 
 if __name__ == "__main__":
     import argparse
@@ -747,8 +811,13 @@ if __name__ == "__main__":
             n_outputs += 1
         else:
             n_outputs += args.features
-    
-    model = model_unit(n_inputs=n_inputs, n_outputs=n_final_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size, sample_norm=sample_norm).to(device)
+    if ensemble_network:
+        # TODO maybe increase n_outputs under model_unit
+        # and decouple n_outputs in EnsembleNetwork with 
+        model = EnsembleNetwork([model_unit(n_inputs=n_inputs, n_outputs=args.features, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size, sample_norm=sample_norm).to(device) 
+                            for i in range(num_models)], n_outputs=n_outputs, n_final_outputs=n_final_outputs, device=device, layers=args.output_layers, n_inputs=num_models * args.features * n_dists)
+    else:
+        model = model_unit(n_inputs=n_inputs, n_outputs=n_final_outputs, n_enc_layers=args.enc_layers, n_hidden_units=args.hidden_units, n_dec_layers=args.dec_layers, ln=layer_norm, bn=batch_norm, activation=activation, instance_norm=instance_norm, n_samples=args.sample_size, sample_norm=sample_norm).to(device)
     
     if args.model == 'deepsample':
         model = DeepSample(n_inputs=n_inputs, n_outputs=n_final_outputs, n_enc_layers_outer=args.enc_layers_outer, n_hidden_units_outer=args.hidden_units_outer, n_dec_layers_outer=args.dec_layers_outer, 
